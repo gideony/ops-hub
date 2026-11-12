@@ -1,0 +1,174 @@
+/* ==========================================================================
+   Somax Hub — Sistema Semântico de Design Tokens por Tema (Claro / Escuro)
+   Garante contraste mínimo WCAG AA (>= 4.5:1 para texto normal, >= 3:1 grande)
+   ========================================================================== */
+
+:root {
+  /* Fundo da página e superfícies (Tema Claro) */
+  --bg-page: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-subtle: #f1f5f9;
+  --bg-surface-hover: #f8fafc;
+  --bg-field: #ffffff;
+  --bg-field-hover: #f8fafc;
+
+  /* Bordas e divisores */
+  --border-main: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-subtle: #f1f5f9;
+  --border-focus: #1e40af;
+
+  /* Tipografia e textos */
+  --text-primary: #0f172a;      /* Contraste em #ffffff: 16.6:1 | em #f8fafc: 15.9:1 */
+  --text-secondary: #475569;    /* Contraste em #ffffff: 7.4:1  | em #f8fafc: 7.1:1 */
+  --text-muted: #526071;        /* Contraste em #ffffff: 5.8:1  | em #f8fafc: 5.5:1 */
+  --text-inverse: #ffffff;
+
+  /* Destaque e Ações Primárias (Somax Azul #1e40af) */
+  --primary-main: #1e40af;
+  --primary-hover: #1d4ed8;
+  --primary-subtle: #eff6ff;
+  --primary-text: #1e40af;
+  --primary-contrast: #ffffff;  /* Contraste em #1e40af: 9.2:1 */
+
+  /* Status / Chips / Prioridades */
+  --chip-success-bg: #dcfce7;
+  --chip-success-text: #14532d; /* Contraste em #dcfce7: 8.6:1 */
+  --chip-success-border: #bbf7d0;
+
+  --chip-warning-bg: #fef3c7;
+  --chip-warning-text: #78350f; /* Contraste em #fef3c7: 7.9:1 */
+  --chip-warning-border: #fde68a;
+
+  --chip-danger-bg: #fee2e2;
+  --chip-danger-text: #991b1b;  /* Contraste em #fee2e2: 7.3:1 */
+  --chip-danger-border: #fca5a5;
+
+  --chip-info-bg: #dbeafe;
+  --chip-info-text: #1e3a8a;    /* Contraste em #dbeafe: 8.9:1 */
+  --chip-info-border: #bfdbfe;
+
+  --chip-purple-bg: #ede9fe;
+  --chip-purple-text: #581c87;  /* Contraste em #ede9fe: 8.8:1 */
+  --chip-purple-border: #ddd6fe;
+
+  --chip-neutral-bg: #f1f5f9;
+  --chip-neutral-text: #334155; /* Contraste em #f1f5f9: 8.7:1 */
+  --chip-neutral-border: #e2e8f0;
+
+  /* WIP (Work in Progress) */
+  --wip-normal-bg: #e2e8f0;
+  --wip-normal-text: #334155;
+  --wip-warning-bg: #fef3c7;
+  --wip-warning-text: #78350f;
+  --wip-warning-border: #fde68a;
+  --wip-exceeded-bg: #fee2e2;
+  --wip-exceeded-text: #991b1b;
+  --wip-exceeded-border: #fca5a5;
+
+  /* Modais e Overlays */
+  --modal-bg: #ffffff;
+  --modal-border: #e2e8f0;
+  --modal-backdrop: rgba(15, 23, 42, 0.6);
+  --modal-card-bg: #f8fafc;
+  --modal-card-border: #e2e8f0;
+
+  /* Campos de Seleção (Dropdowns / Selects) */
+  --select-bg: #ffffff;
+  --select-text: #0f172a;       /* Contraste em #ffffff: 16.6:1 */
+  --select-border: #cbd5e1;
+  --select-option-bg: #ffffff;
+  --select-option-text: #0f172a;
+  --input-placeholder: #64748b;
+}
+
+:root[data-theme='dark'] {
+  /* Fundo da página e superfícies (Tema Escuro) */
+  --bg-page: #09090b;
+  --bg-surface: #18181f;
+  --bg-surface-subtle: #1c1c24;
+  --bg-surface-hover: #23232e;
+  --bg-field: #1f1f23;
+  --bg-field-hover: #26262d;
+
+  /* Bordas e divisores */
+  --border-main: #2a2a34;
+  --border-strong: #3b3b48;
+  --border-subtle: #24242e;
+  --border-focus: #818cf8;
+
+  /* Tipografia e textos */
+  --text-primary: #f8fafc;      /* Contraste em #09090b: 19.0:1 | em #18181f: 16.8:1 */
+  --text-secondary: #cbd5e1;    /* Contraste em #09090b: 13.3:1 | em #18181f: 11.8:1 */
+  --text-muted: #94a3b8;        /* Contraste em #09090b: 7.8:1  | em #18181f: 6.9:1 */
+  --text-inverse: #09090b;
+
+  /* Destaque e Ações Primárias (Tema Escuro) */
+  --primary-main: #5556d8;
+  --primary-hover: #6768ed;
+  --primary-subtle: #1e243c;
+  --primary-text: #93c5fd;
+  --primary-contrast: #ffffff;  /* Contraste em #5556d8: 5.7:1 */
+
+  /* Status / Chips / Prioridades */
+  --chip-success-bg: #153422;
+  --chip-success-text: #86efac; /* Contraste em #153422: 9.6:1 */
+  --chip-success-border: #1e4a30;
+
+  --chip-warning-bg: #3d2c12;
+  --chip-warning-text: #fde047; /* Contraste em #3d2c12: 10.1:1 */
+  --chip-warning-border: #5a4016;
+
+  --chip-danger-bg: #45141e;
+  --chip-danger-text: #fca5a5;  /* Contraste em #45141e: 8.1:1 */
+  --chip-danger-border: #83222e;
+
+  --chip-info-bg: #1e293b;
+  --chip-info-text: #93c5fd;    /* Contraste em #1e293b: 8.4:1 */
+  --chip-info-border: #2a3d66;
+
+  --chip-purple-bg: #28244a;
+  --chip-purple-text: #c7d2fe;  /* Contraste em #28244a: 8.9:1 */
+  --chip-purple-border: #3c376e;
+
+  --chip-neutral-bg: #202026;
+  --chip-neutral-text: #cbd5e1; /* Contraste em #202026: 11.2:1 */
+  --chip-neutral-border: #2e2e38;
+
+  /* WIP (Work in Progress) */
+  --wip-normal-bg: #272730;
+  --wip-normal-text: #cbd5e1;
+  --wip-warning-bg: #45300f;
+  --wip-warning-text: #fde047;
+  --wip-warning-border: #785816;
+  --wip-exceeded-bg: #45141e;
+  --wip-exceeded-text: #fca5a5;
+  --wip-exceeded-border: #83222e;
+
+  /* Modais e Overlays */
+  --modal-bg: #161619;
+  --modal-border: #2a2a34;
+  --modal-backdrop: rgba(0, 0, 0, 0.75);
+  --modal-card-bg: #1c1c22;
+  --modal-card-border: #2e2e38;
+
+  /* Campos de Seleção (Dropdowns / Selects) */
+  --select-bg: #1f1f23;
+  --select-text: #f8fafc;       /* Contraste em #1f1f23: 16.0:1 */
+  --select-border: #3b3b48;
+  --select-option-bg: #18181f;
+  --select-option-text: #f8fafc;
+  --input-placeholder: #777782;
+}
+
+/* Regras Globais para Selects e Dropdowns */
+select {
+  background-color: var(--select-bg);
+  color: var(--select-text);
+  border-color: var(--select-border);
+}
+
+select option {
+  background-color: var(--select-option-bg);
+  color: var(--select-option-text);
+}

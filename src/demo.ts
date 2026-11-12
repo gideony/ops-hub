@@ -1,0 +1,657 @@
+import type { Board, BoardStage, Channel, Checklist, ChecklistTemplateGroup, ChecklistTemplateItem, Client, ClientRegistrationLink, ClientRegistrationSubmission, Member, Profile, Sprint, Stage, Tag, Task, Team, Template, Transition } from './lib'
+
+export const demoUserId = 'demo-admin'
+const profiles: Profile[] = [
+  {id:demoUserId,full_name:'Administrador Master',email:'master@somax.example',whatsapp:'+5511999990101',role:'administrador',active:true,is_master:true},
+  {id:'demo-bruno',full_name:'Bruno Costa',email:'bruno@somax.example',whatsapp:'+5511999990102',role:'gestor',active:true},
+  {id:'demo-camila',full_name:'Camila Martins',email:'camila@somax.example',whatsapp:'+5511999990103',role:'colaborador',active:true},
+  {id:'demo-diego',full_name:'Diego Ferreira',email:'diego@somax.example',whatsapp:'+5511999990104',role:'gestor',active:true},
+  {id:'demo-elisa',full_name:'Elisa Souza',email:'elisa@somax.example',whatsapp:'+5511999990105',role:'colaborador',active:true},
+]
+const teams: Team[] = [
+  {id:'comercial',name:'Comercial',color:'#e9a23b'},
+  {id:'desenvolvimento',name:'Desenvolvimento',color:'#6f72d9'},
+  {id:'design',name:'Design',color:'#d684a8'},
+  {id:'financeiro',name:'Financeiro',color:'#4caa90'},
+]
+const members: Member[] = [
+  ...teams.map(team=>({team_id:team.id,user_id:demoUserId,is_manager:true,active:true})),
+  {team_id:'comercial',user_id:'demo-bruno',is_manager:true,active:true},
+  {team_id:'comercial',user_id:'demo-elisa',is_manager:false,active:true},
+  {team_id:'desenvolvimento',user_id:'demo-camila',is_manager:false,active:true},
+  {team_id:'desenvolvimento',user_id:'demo-diego',is_manager:true,active:true},
+  {team_id:'design',user_id:'demo-elisa',is_manager:false,active:true},
+  {team_id:'financeiro',user_id:'demo-bruno',is_manager:false,active:true},
+]
+const clients: Client[] = [
+  {id:'aurora',name:'Aurora Café',legal_name:'Aurora Café Comércio Fictício Ltda.',contact_name:'Marina Lopes',contact_email:'marina@aurora.example',contact_phone:'(11) 90000-0101',financial_contact_name:'Paulo Lima',financial_email:'financeiro@aurora.example',financial_whatsapp:'(11) 90000-0102',financial_due_date:'2026-11-10',financial_notes:'Cobrança mensal fictícia.',links:[{label:'Site',url:'https://aurora.example'}],integration_references:'Catálogo de produtos fictício.',integration_items:[{key:'Catálogo',value:'https://aurora.example/catalogo'}]},
+  {id:'verdejar',name:'Verdejar',legal_name:'Verdejar Projetos Fictícios Ltda.',contact_name:'Daniel Prado',contact_email:'daniel@verdejar.example',contact_phone:'(11) 90000-0202',financial_contact_name:null,financial_email:null,financial_whatsapp:null,financial_due_date:null,financial_notes:'Projeto demonstrativo.',links:[],integration_references:'Referência pública de API fictícia.',integration_items:[]},
+  {id:'nuvem',name:'Nuvem Norte',legal_name:'Nuvem Norte Serviços Fictícios Ltda.',contact_name:'Clara Reis',contact_email:'clara@nuvemnorte.example',contact_phone:'(11) 90000-0303',financial_contact_name:null,financial_email:null,financial_whatsapp:null,financial_due_date:null,financial_notes:'Faturamento de demonstração.',links:[],integration_references:'Sem integração ativa.',integration_items:[]},
+]
+const names = ['Backlog','Negociação','Contrato','Kick-off','Criação de Imagens','Desenvolvimento APP','Integração/Personalização','Homologação','Criação de Telas','Deploy','Aguardando Aprovação','Entrega','Faturamento','Concluído','Pausado']
+const colors = ['#f59e0b','#6b7280','#3b82f6','#ef4444','#22c55e','#8b5cf6','#6f72d9','#9e8ccf','#c184be','#6d9ed0','#c19967','#6ab7a1','#4caa90','#4caa90','#f59e0b']
+const boardOrder=['Negociação','Pausado','Backlog','Contrato','Kick-off','Criação de Imagens','Desenvolvimento APP','Integração/Personalização','Homologação','Criação de Telas','Deploy','Aguardando Aprovação','Entrega','Faturamento','Concluído']
+const stages: Stage[] = names.map((name,index)=>({id:`stage-${index}`,name,position:boardOrder.indexOf(name),color:colors[index],is_final:index===13,is_pause:index===14}))
+const transitions: Transition[] = stages.flatMap((stage,index)=>[
+  ...(index<13?[{from_stage_id:stage.id,to_stage_id:stages[index+1].id}]:[]),
+  ...(index!==14&&index!==13&&index!==0?[{from_stage_id:stage.id,to_stage_id:stages[14].id},{from_stage_id:stage.id,to_stage_id:stages[0].id}]:[]),
+  ...(index===13?[{from_stage_id:stage.id,to_stage_id:stages[12].id}]:[]),
+  ...(index!==13?[{from_stage_id:stage.id,to_stage_id:stages[13].id}]:[]),
+  ...(index===14?[{from_stage_id:stage.id,to_stage_id:stages[0].id}]:[]),
+])
+const flowDescriptions: Record<string, string> = {
+  'stage-2->stage-3': 'Após assinatura de contrato, mover para kickoff',
+  'stage-3->stage-4': 'Após o kickoff e receber todo o Brandkit do cliente enviar para etapa de Criação de Imagens',
+  'stage-4->stage-5': 'Após conclusão de todas as imagens mover para equipa de Desenvolvimento do APP',
+  'stage-5->stage-6': 'Após App criado, mover para etapa de integração e personalização',
+  'stage-6->stage-7': 'Após app integrado e personalizado mover para etapa de homologação',
+  'stage-7->stage-8': 'Após homologar o app com o cliente mover para Criação de Telas',
+  'stage-8->stage-9': 'Após todas as telas produzidas, mover para Deploy',
+  'stage-9->stage-10': 'Após subir o App nas lojas, mover para Aguardando Aprovação',
+  'stage-10->stage-11': 'Após APP publicado em ambas as lojas mover para etapa de Entrega',
+  'stage-11->stage-12': 'Após finalizar entrega do cliente mover para Faturamento.',
+}
+transitions.forEach(transition => {
+  const key = `${transition.from_stage_id}->${transition.to_stage_id}`
+  if (flowDescriptions[key]) transition.description = flowDescriptions[key]
+})
+function isoOffset(days:number) {const date=new Date();date.setDate(date.getDate()+days);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`}
+const now=new Date().toISOString()
+function task(id:string,title:string,description:string,team_id:string,assignee_id:string,client_id:string|null,stage:number,priority:Task['priority'],due:number|null,tags:string[],completed_at:string|null=null):Task{
+  return {id,title,description,team_id,assignee_id,client_id,stage_id:stages[stage].id,priority,due_at:due===null?null:isoOffset(due),tags,completed_at,created_by:demoUserId,created_at:now,updated_at:now}
+}
+const tasks:Task[] = [
+  task('tarefa-001','Portal de pedidos Aurora','Criar a experiência do novo portal de pedidos e integrar o catálogo.', 'desenvolvimento','demo-camila','aurora',5,'alta',5,['portal','produto']),
+  task('tarefa-002','Campanha de lançamento Verdejar','Desenvolver peças visuais para a campanha de lançamento.', 'design',demoUserId,'verdejar',4,'media',9,['campanha','design']),
+  task('tarefa-003','Proposta Nuvem Norte','Preparar escopo e proposta comercial para o novo cliente.', 'comercial','demo-bruno','nuvem',1,'urgente',-2,['proposta']),
+  task('tarefa-004','Conferir faturamento Aurora','Validar os dados de cobrança e emitir documentação.', 'financeiro',demoUserId,'aurora',12,'baixa',12,['financeiro']),
+  task('tarefa-005','Revisão de conteúdo institucional','Aguardando retorno do cliente para continuar a revisão.', 'design','demo-elisa','aurora',14,'media',null,['conteúdo']),
+  task('tarefa-006','Kick-off do novo site','Alinhar escopo, cronograma e responsáveis do projeto.', 'desenvolvimento','demo-diego','verdejar',3,'alta',2,['site']),
+  task('tarefa-007','Apresentação comercial','Preparar material para reunião de descoberta.', 'comercial',demoUserId,'verdejar',0,'media',6,['apresentação']),
+  task('tarefa-008','Entrega do guia de marca','Guia visual entregue e aprovado pelo cliente.', 'design','demo-elisa','nuvem',13,'baixa',-1,['marca'],now),
+  task('tarefa-009','Novo contrato Aurora','Revisar escopo da segunda fase do portal.', 'comercial','demo-bruno','aurora',1,'media',4,['contrato']),
+  task('tarefa-010','Proposta de automação','Apresentar alternativas de atendimento digital.', 'comercial','demo-elisa','verdejar',1,'alta',3,['automação']),
+  task('tarefa-011','Integração de catálogo','Aguardando definição de campos do cliente.', 'desenvolvimento','demo-diego','aurora',14,'alta',null,['integração']),
+  task('tarefa-012','Revisão do site institucional','Aguardando aprovação de conteúdo.', 'design','demo-elisa','nuvem',14,'media',null,['site']),
+  task('tarefa-013','Planejamento do aplicativo','Documentar requisitos para início do projeto.', 'desenvolvimento','demo-camila','verdejar',0,'media',8,['aplicativo']),
+  task('tarefa-014','Pesquisa visual Aurora','Reunir referências para a interface de pedidos.', 'design','demo-elisa','aurora',0,'baixa',11,['referências']),
+  task('tarefa-015','Contrato Nuvem Norte','Conferir cláusulas e cronograma de entregas.', 'comercial','demo-bruno','nuvem',2,'alta',5,['contrato']),
+  task('tarefa-016','Contrato Verdejar','Validar condições antes do kick-off.', 'comercial',demoUserId,'verdejar',2,'media',7,['contrato']),
+  task('tarefa-017','Mapa de integrações','Detalhar pontos de troca de dados com o cliente.', 'desenvolvimento','demo-diego','aurora',2,'media',9,['integração']),
+]
+const tagPalette=['#a855f7','#ef4444','#10b981','#f59e0b','#3b82f6','#ec4899','#8b5cf6','#64748b']
+const defaultTags = [
+  'Atualizar versão do APP',
+  'Concluido',
+  'Faturado',
+  'Google',
+  'Higor',
+  'Integrado',
+  'Nova Integração',
+  'Novo Cliente',
+  'Personalizado',
+  'Urgente',
+]
+const tags:Tag[]=[...new Set([...defaultTags, ...tasks.flatMap(task=>task.tags)])].sort((a,b)=>a.localeCompare(b,'pt-BR')).map((name,index)=>({id:`tag-${index}`,name,color:tagPalette[index%tagPalette.length]}))
+const channels:Channel[] = teams.map(team=>({id:`channel-${team.id}`,team_id:team.id,name:'Geral',created_at:now}))
+const templateDefinitions: { name: string; items: string[] }[] = [
+  {
+    name: 'BRANDKIT',
+    items: [
+      'NOME DO APP PARA AS LOJAS',
+      'URL DO SISTEMA DE GESTAO',
+      'DADOS DE INTEGRACAO',
+      '3 CPFS PARA TESTES',
+      'DADOS DE REDES SOCIAIS',
+      'SOLICITAR LOGOTIPO DO CLIENTE EM PDF',
+      'CONTATO CENTRAL DE ATENDIMENTO',
+      'URL TESTE DE VELOCIDADE',
+      'SITE DO PROVEDOR',
+    ],
+  },
+  {
+    name: 'Contrato',
+    items: [
+      'Gerar contrato',
+      'Enviar Contrato',
+      'Contrato assinado',
+    ],
+  },
+  {
+    name: 'Criação de Imagens',
+    items: [
+      'Icones do Android',
+      'Icones do Apple',
+      'Tela de Splash',
+      'Banner Home',
+      'Imagem para SVA',
+      'Paleta de Cores',
+    ],
+  },
+  {
+    name: 'Produção das telas',
+    items: [
+      'Desing para Android',
+      'Desing para iPhone',
+      'Desing para iPad',
+    ],
+  },
+  {
+    name: 'Personalização',
+    items: [
+      'Banner Home',
+      'Tela de Splash',
+      'Tela de Login',
+      'Tela Principal',
+      'Tela de Fatruras',
+      'Tela de Notificações',
+      'SVA',
+    ],
+  },
+  {
+    name: 'Nova Integração',
+    items: [
+      'Nova integração com ERP',
+    ],
+  },
+  {
+    name: 'Kick-off',
+    items: [
+      'Criação de Grupo',
+      'Criação de Apresentação',
+      'Criação do Cronograma',
+      'Reunião de Kick-off',
+      'Criação do Termo de Abertura',
+      'Criação do Termo de Encerramento',
+    ],
+  },
+  {
+    name: 'Integração',
+    items: [
+      'Realizar integração com ERP',
+    ],
+  },
+  {
+    name: 'Homologação',
+    items: [
+      'Homologar Super App com cliente',
+      'Realizar Meet',
+      'Criar credencias do Cliente',
+    ],
+  },
+  {
+    name: 'Faturamento',
+    items: [
+      'Gerar fatura do cliente',
+    ],
+  },
+  {
+    name: 'Entrega',
+    items: [
+      'Termo de encerramento do projeto',
+      'Treinamento para o Cliente',
+      'Criação dos cards de divulgação',
+    ],
+  },
+  {
+    name: 'Desenvolvimento de APP',
+    items: [
+      'Duplicação do APP',
+      'Provisionamento da infraestrutura',
+      'Configuração das notificações',
+    ],
+  },
+  {
+    name: 'Deploy',
+    items: [
+      'Deploy Google',
+      'Preparação para publicação',
+      'Publicação concluída',
+      'Revisão das lojas',
+      'Validação da Upload Key  Google Play',
+      'Deploy Apple',
+    ],
+  },
+]
+const templateGroups: ChecklistTemplateGroup[] = templateDefinitions.map((def, position) => ({
+  id: `template-${position}`,
+  name: def.name,
+  description: null,
+  position: position + 1,
+}))
+const templateItems: ChecklistTemplateItem[] = templateDefinitions.flatMap((def, position) =>
+  def.items.map((title, index) => ({
+    id: `template-item-${position}-${index}`,
+    group_id: `template-${position}`,
+    title,
+    position: index + 1,
+  }))
+)
+
+const stageTemplateSpecs: { stage: string; items: string[] }[] = [
+  { stage: 'Contrato', items: ['Gerar contrato', 'Enviar Contrato', 'Contrato assinado'] },
+  { stage: 'Kick-off', items: ['Criação de Grupo', 'Criação de Apresentação', 'Criação do Cronograma', 'Reunião de Kick-off', 'Criação do Termo de Abertura', 'Criação do Termo de Encerramento'] },
+  { stage: 'Criação de Imagens', items: ['Icones do Android', 'Icones do Apple', 'Tela de Splash', 'Banner Home', 'Imagem para SVA', 'Paleta de Cores'] },
+  { stage: 'Criação de Telas', items: ['Desing para Android', 'Desing para iPhone', 'Desing para iPad'] },
+  { stage: 'Desenvolvimento APP', items: ['Duplicação do APP', 'Provisionamento da infraestrutura', 'Configuração das notificações'] },
+  { stage: 'Integração/Personalização', items: ['Realizar integração com ERP', 'Banner Home', 'Tela de Splash', 'Tela de Login', 'Tela Principal', 'Tela de Fatruras', 'Tela de Notificações', 'SVA'] },
+  { stage: 'Homologação', items: ['Homologar Super App com cliente', 'Realizar Meet', 'Criar credencias do Cliente'] },
+  { stage: 'Deploy', items: ['Deploy Google', 'Preparação para publicação', 'Publicação concluída', 'Revisão das lojas', 'Validação da Upload Key  Google Play', 'Deploy Apple'] },
+  { stage: 'Entrega', items: ['Termo de encerramento do projeto', 'Treinamento para o Cliente', 'Criação dos cards de divulgação'] },
+  { stage: 'Faturamento', items: ['Gerar fatura do cliente'] },
+]
+
+const stageTemplates: Template[] = stageTemplateSpecs.flatMap(spec => {
+  const stage = stages.find(s => s.name === spec.stage)
+  if (!stage) return []
+  return spec.items.map((title, index) => ({
+    id: `template-${stage.id}-${index}`,
+    stage_id: stage.id,
+    title,
+    position: index + 1,
+  }))
+})
+
+const boards: Board[] = [
+  {
+    id: 'board-geral',
+    name: 'Geral',
+    description: 'Quadro canônico completo com todas as 15 etapas operacionais da Somax.',
+    type: 'general',
+    methodology: 'kanban',
+    team_id: null,
+    is_shared: true,
+    stage_ids: stages.map(s => s.id),
+    position: 0,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: 'board-comercial',
+    name: 'Comercial',
+    description: 'Visão focada nas etapas comerciais do funil.',
+    type: 'sector_view',
+    methodology: 'kanban',
+    team_id: null,
+    is_shared: true,
+    stage_ids: [
+      stages.find(s => s.name === 'Negociação')?.id || stages[0].id,
+      stages.find(s => s.name === 'Contrato')?.id || stages[3].id,
+      stages.find(s => s.name === 'Kick-off')?.id || stages[4].id,
+    ],
+    position: 1,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: 'board-suporte-n1',
+    name: 'Suporte N1',
+    description: 'Quadro Kanban com limite de trabalho em andamento (WIP) para chamados.',
+    type: 'custom',
+    methodology: 'kanban',
+    team_id: 'desenvolvimento',
+    is_shared: false,
+    stage_ids: [],
+    position: 2,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: 'board-app-mobile',
+    name: 'App Mobile',
+    description: 'Quadro Scrum para planejamento e execução das sprints do aplicativo.',
+    type: 'custom',
+    methodology: 'scrum',
+    team_id: 'desenvolvimento',
+    is_shared: true,
+    stage_ids: [],
+    position: 3,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+  },
+]
+
+const boardStages: BoardStage[] = [
+  // Suporte N1
+  { id: 'bstage-sup-1', board_id: 'board-suporte-n1', name: 'Fila de Chamados', color: '#94a3b8', position: 0, wip_limit: null, is_final: false, created_at: now },
+  { id: 'bstage-sup-2', board_id: 'board-suporte-n1', name: 'Em Atendimento', color: '#3b82f6', position: 1, wip_limit: 2, is_final: false, created_at: now },
+  { id: 'bstage-sup-3', board_id: 'board-suporte-n1', name: 'Resolvido', color: '#10b981', position: 2, wip_limit: null, is_final: true, created_at: now },
+
+  // App Mobile (Scrum)
+  { id: 'bstage-app-1', board_id: 'board-app-mobile', name: 'A Fazer', color: '#94a3b8', position: 0, wip_limit: null, is_final: false, created_at: now },
+  { id: 'bstage-app-2', board_id: 'board-app-mobile', name: 'Em Desenvolvimento', color: '#6366f1', position: 1, wip_limit: 3, is_final: false, created_at: now },
+  { id: 'bstage-app-3', board_id: 'board-app-mobile', name: 'Code Review', color: '#f59e0b', position: 2, wip_limit: 2, is_final: false, created_at: now },
+  { id: 'bstage-app-4', board_id: 'board-app-mobile', name: 'Concluído', color: '#10b981', position: 3, wip_limit: null, is_final: true, created_at: now },
+]
+
+const sprints: Sprint[] = [
+  {
+    id: 'sprint-1',
+    board_id: 'board-app-mobile',
+    name: 'Sprint 14 - Biometria e Push',
+    goal: 'Lançar autenticação biométrica e central de notificações.',
+    start_date: '2026-11-01',
+    end_date: '2026-11-15',
+    status: 'active',
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: 'sprint-2',
+    board_id: 'board-app-mobile',
+    name: 'Sprint 15 - Gateway de Pagamento',
+    goal: 'Integrar PIX automático e conciliação bancária.',
+    start_date: '2026-11-16',
+    end_date: '2026-11-30',
+    status: 'planning',
+    created_at: now,
+    updated_at: now,
+  },
+]
+
+const extraTasks: Task[] = [
+  {
+    id: 'tarefa-sup-1',
+    title: 'Chamado #1042 - Falha de login no app',
+    description: 'Cliente relata erro ao digitar senha de acesso.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-diego',
+    client_id: 'aurora',
+    stage_id: 'bstage-sup-2',
+    priority: 'alta',
+    due_at: '2026-11-12',
+    tags: ['suporte', 'login'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-suporte-n1',
+    sprint_id: null,
+  },
+  {
+    id: 'tarefa-sup-2',
+    title: 'Chamado #1045 - Solicitação de reset de MFA',
+    description: 'Usuário trocou de aparelho e precisa refazer o autenticador.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-camila',
+    client_id: 'verdejar',
+    stage_id: 'bstage-sup-2',
+    priority: 'media',
+    due_at: '2026-11-13',
+    tags: ['suporte', 'mfa'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-suporte-n1',
+    sprint_id: null,
+  },
+  {
+    id: 'tarefa-sup-3',
+    title: 'Chamado #1048 - Webhook de pagamentos com timeout',
+    description: 'Notificações de fatura paga estão falhando esporadicamente.',
+    team_id: 'desenvolvimento',
+    assignee_id: null,
+    client_id: 'nuvem',
+    stage_id: 'bstage-sup-3',
+    priority: 'urgente',
+    due_at: '2026-11-11',
+    tags: ['suporte', 'webhook'],
+    completed_at: now,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-suporte-n1',
+    sprint_id: null,
+  },
+  {
+    id: 'tarefa-app-1',
+    title: 'Implementar Face ID / Touch ID no iOS',
+    description: 'Suporte à biblioteca de biometria nativa no iOS.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-diego',
+    client_id: 'aurora',
+    stage_id: 'bstage-app-2',
+    priority: 'alta',
+    due_at: '2026-11-14',
+    tags: ['ios', 'biometria'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-app-mobile',
+    sprint_id: 'sprint-1',
+    story_points: 5,
+    backlog_order: 1,
+  },
+  {
+    id: 'tarefa-app-2',
+    title: 'Biometria digital Android (BiometricPrompt)',
+    description: 'Integração com sensor de digital em dispositivos Android.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-camila',
+    client_id: 'aurora',
+    stage_id: 'bstage-app-1',
+    priority: 'media',
+    due_at: '2026-11-15',
+    tags: ['android', 'biometria'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-app-mobile',
+    sprint_id: 'sprint-1',
+    story_points: 3,
+    backlog_order: 2,
+  },
+  {
+    id: 'tarefa-app-3',
+    title: 'Configuração do canal Firebase FCM',
+    description: 'Notificações push em segundo plano.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-diego',
+    client_id: 'verdejar',
+    stage_id: 'bstage-app-4',
+    priority: 'alta',
+    due_at: '2026-11-15',
+    tags: ['push', 'fcm'],
+    completed_at: '2026-11-08T15:30:00Z',
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: '2026-11-08T15:30:00Z',
+    board_id: 'board-app-mobile',
+    sprint_id: 'sprint-1',
+    story_points: 5,
+    backlog_order: 3,
+  },
+  {
+    id: 'tarefa-app-4',
+    title: 'Histórico de transações PIX com comprovante',
+    description: 'Visualização de recibos no formato PDF no app.',
+    team_id: 'desenvolvimento',
+    assignee_id: null,
+    client_id: 'nuvem',
+    stage_id: 'bstage-app-1',
+    priority: 'baixa',
+    due_at: null,
+    tags: ['pix', 'pagamentos'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-app-mobile',
+    sprint_id: null, // No Backlog!
+    story_points: 8,
+    backlog_order: 1,
+  },
+  {
+    id: 'tarefa-app-5',
+    title: 'Integração com Wallet Apple / Google Pay',
+    description: 'Adicionar cartões virtuais à carteira nativa do sistema operacional.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-diego',
+    client_id: 'aurora',
+    stage_id: 'bstage-app-1',
+    priority: 'alta',
+    due_at: null,
+    tags: ['wallet', 'apple-pay'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-app-mobile',
+    sprint_id: null, // No Backlog!
+    story_points: 13,
+    backlog_order: 2,
+  },
+  {
+    id: 'tarefa-app-6',
+    title: 'Modo escuro dinâmico baseado no sistema',
+    description: 'Alternar tema automaticamente conforme configuração do dispositivo.',
+    team_id: 'desenvolvimento',
+    assignee_id: 'demo-camila',
+    client_id: 'verdejar',
+    stage_id: 'bstage-app-1',
+    priority: 'media',
+    due_at: null,
+    tags: ['dark-mode', 'ui'],
+    completed_at: null,
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+    board_id: 'board-app-mobile',
+    sprint_id: null, // No Backlog!
+    story_points: 3,
+    backlog_order: 3,
+  },
+]
+
+export const demoRegistrationLinks: ClientRegistrationLink[] = [
+  {
+    id: 'link-demo-1',
+    token: 'cadastro-demo-comercial',
+    created_by: demoUserId,
+    team_id: 'comercial',
+    single_use: false,
+    max_submissions: 5,
+    submission_count: 1,
+    include_financial: true,
+    expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+    is_active: true,
+    notes: 'Link para captação de clientes do setor Comercial',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'link-demo-2',
+    token: 'link-expirado-teste',
+    created_by: demoUserId,
+    team_id: null,
+    single_use: true,
+    max_submissions: 1,
+    submission_count: 1,
+    include_financial: false,
+    expires_at: new Date(Date.now() - 86400000).toISOString(),
+    is_active: false,
+    notes: 'Link já utilizado e expirado',
+    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+]
+
+export const demoRegistrationSubmissions: ClientRegistrationSubmission[] = [
+  {
+    id: 'sub-demo-1',
+    link_id: 'link-demo-1',
+    client_id: null,
+    status: 'pending',
+    lgpd_accepted_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    data: {
+      name: 'TechLog Soluções',
+      legal_name: 'TechLog Soluções em Logística Ltda',
+      cnpj_cpf: '12.345.678/0001-90',
+      contact_name: 'Rodrigo Medeiros',
+      contact_email: 'rodrigo@techlog.example',
+      contact_phone: '(11) 98765-4321',
+      financial_contact_name: 'Camila Rocha',
+      financial_email: 'financeiro@techlog.example',
+      financial_whatsapp: '(11) 98765-4322',
+      financial_due_date: '10',
+      financial_notes: 'Faturamento preferencial todo dia 10.',
+      links: [{ label: 'Site Oficial', url: 'https://techlog.example' }],
+    },
+  },
+]
+
+export const demoData = {
+  profiles,
+  teams,
+  members,
+  clients,
+  stages: [...stages].sort((a,b)=>a.position-b.position),
+  transitions,
+  templates: stageTemplates,
+  templateGroups,
+  templateItems,
+  tags,
+  tasks: [...tasks, ...extraTasks],
+  channels,
+  reads: [],
+  boards,
+  boardStages,
+  sprints,
+  registrationLinks: demoRegistrationLinks,
+  registrationSubmissions: demoRegistrationSubmissions,
+}
+
+export const initialDemoChecklists: Record<string, Checklist[]> = {
+  'tarefa-001': [
+    ...templateDefinitions[0].items.map((title, idx) => ({
+      id: `demo-check-001-brandkit-${idx}`,
+      task_id: 'tarefa-001',
+      title,
+      done: idx < 2,
+      position: idx + 1,
+      group_name: 'BRANDKIT'
+    })),
+    ...templateDefinitions[11].items.map((title, idx) => ({
+      id: `demo-check-001-dev-${idx}`,
+      task_id: 'tarefa-001',
+      title,
+      done: false,
+      position: 10 + idx,
+      group_name: 'Desenvolvimento de APP'
+    }))
+  ],
+  'tarefa-006': templateDefinitions[6].items.map((title, idx) => ({
+    id: `demo-check-006-${idx}`,
+    task_id: 'tarefa-006',
+    title,
+    done: idx < 2,
+    position: idx + 1,
+    group_name: 'Kick-off'
+  })),
+  'tarefa-009': templateDefinitions[1].items.map((title, idx) => ({
+    id: `demo-check-009-${idx}`,
+    task_id: 'tarefa-009',
+    title,
+    done: idx === 0,
+    position: idx + 1,
+    group_name: 'Contrato'
+  })),
+  'tarefa-013': [
+    ...templateDefinitions[0].items.map((title, idx) => ({
+      id: `demo-check-013-brandkit-${idx}`,
+      task_id: 'tarefa-013',
+      title,
+      done: idx < 3,
+      position: idx + 1,
+      group_name: 'BRANDKIT'
+    }))
+  ]
+}

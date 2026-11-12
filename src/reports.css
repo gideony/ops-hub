@@ -1,0 +1,274 @@
+.reports-page{max-width:1500px}
+.reports-heading{align-items:flex-end}
+.reports-filter-panel,.reports-panel,.reports-metric{background:var(--bg-surface);border:1px solid var(--border-main);border-radius:9px}
+.reports-filter-panel{padding:17px 19px;margin-bottom:16px}
+.reports-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:11px;align-items:end}
+.reports-filter-grid .field{min-width:0}
+.reports-filter-grid .field input,.reports-filter-grid .field select{height:36px;background:var(--bg-field);border-color:var(--border-main);color:var(--text-primary)}
+.reports-clear{height:36px;padding:0 10px;border:0;background:transparent;color:var(--primary-text);font-size:10px;font-weight:700;white-space:nowrap}
+.reports-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.reports-metric{text-align:left;min-width:0;min-height:126px;padding:15px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;color:var(--text-primary)}
+.reports-metric:hover,.reports-metric.selected{border-color:var(--border-focus)}
+.reports-metric.selected{box-shadow:inset 0 0 0 1px var(--border-focus)}
+.reports-metric-icon{width:29px;height:29px;display:grid;place-items:center;border-radius:7px;background:var(--primary-subtle);color:var(--primary-text);margin-bottom:3px}
+.reports-metric-icon.done{background:var(--chip-success-bg);color:var(--chip-success-text)}
+.reports-metric-icon.overdue{background:var(--chip-danger-bg);color:var(--chip-danger-text)}
+.reports-metric-icon.blocked{background:var(--chip-warning-bg);color:var(--chip-warning-text)}
+.reports-metric strong{font-size:24px;line-height:1.1;color:var(--text-primary)}
+.reports-metric>span:not(.reports-metric-icon){font-size:11px;font-weight:700;color:var(--text-primary)}
+.reports-metric small{font-size:9px;color:var(--text-muted)}
+.reports-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.reports-panel-head{padding:17px 19px 10px}
+.reports-title-inline{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.reports-title-inline h2{font-size:13px;margin:0;color:var(--text-primary)}
+.reports-title-icon{color:var(--text-muted);flex-shrink:0}
+.reports-panel h2{font-size:13px;margin:0 0 4px;color:var(--text-primary)}
+.reports-panel p{font-size:10px;color:var(--text-muted);margin:0}
+.reports-bar-list{padding:10px 19px 19px;display:grid;gap:11px;max-height:290px;overflow:auto}
+.reports-bar-row{display:grid;grid-template-columns:minmax(100px,150px) minmax(0,1fr) 25px;align-items:center;gap:12px;font-size:10px}
+.reports-bar-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary)}
+.reports-bar-row>div{height:7px;background:var(--border-main);border-radius:9px;overflow:hidden}
+.reports-bar-row i{display:block;height:100%;border-radius:9px}
+.reports-bar-row strong{text-align:right;font-size:10px;color:var(--text-primary)}
+.reports-list-head{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:16px 19px}
+.reports-list-head .search{height:34px;min-width:190px;max-width:270px;background:var(--bg-field);border-color:var(--border-main);color:var(--text-primary)}
+.reports-list .table-wrap{border:0;border-top:1px solid var(--border-subtle);border-radius:0;box-shadow:none;background:var(--bg-surface)}
+.reports-list .data-table th{padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-secondary);background:var(--bg-surface-subtle);border-bottom:1px solid var(--border-main);white-space:nowrap}
+.reports-list .data-table td{padding:10px 14px;height:46px;vertical-align:middle;border-top:1px solid var(--border-subtle);color:var(--text-primary);font-size:12px}
+.reports-status{display:inline-block;padding:4px 7px;border-radius:5px;font-size:9px;font-weight:700;background:var(--primary-subtle);color:var(--primary-text)}
+.reports-status.done{background:var(--chip-success-bg);color:var(--chip-success-text)}
+.reports-status.overdue{background:var(--chip-danger-bg);color:var(--chip-danger-text)}
+.reports-status.blocked{background:var(--chip-warning-bg);color:var(--chip-warning-text)}
+.reports-empty{padding:10px 0;color:var(--text-muted)}
+.reports-empty-table{text-align:center;padding:22px!important;color:var(--text-muted)}
+@media(max-width:1180px){.reports-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.reports-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:750px){.reports-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.reports-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.reports-charts{grid-template-columns:1fr}.reports-heading{align-items:flex-start}.reports-list-head{flex-wrap:wrap}.reports-list-head .search{max-width:none;width:100%}}
+@media(max-width:470px){.reports-filter-grid{grid-template-columns:1fr 1fr}.reports-filter-grid .field:nth-child(n+3){grid-column:1/-1}.reports-clear{justify-self:start}.reports-metrics{gap:7px}.reports-metric{min-height:110px;padding:10px}.reports-bar-row{grid-template-columns:95px minmax(0,1fr) 19px;gap:7px}}
+
+/* Evolução V2: Quadro como dimensão, Resumo de Quadros e Indicador de Atraso */
+.reports-filter-grid-v2{grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)) auto;gap:10px}
+.reports-metrics-v2{grid-template-columns:repeat(6, minmax(0, 1fr))}
+@media(max-width:1180px){.reports-metrics-v2{grid-template-columns:repeat(3, minmax(0, 1fr))}}
+@media(max-width:650px){.reports-metrics-v2{grid-template-columns:repeat(2, minmax(0, 1fr))}}
+
+.reports-board-summary-box{margin-bottom:16px;height:auto;min-height:0}
+.reports-board-summary-box .reports-panel-head{padding:12px 16px 8px}
+
+/* Contêiner com rolagem horizontal para responsividade e altura compacta */
+.report-table-wrap{overflow-x:auto;border-radius:0 0 9px 9px;height:auto}
+
+/* Tabela de Resumo por Quadro - Alturas e espaçamentos enxutos e consistentes */
+.report-board-table{width:100%;min-width:600px;border-collapse:collapse;height:auto}
+.report-board-table th{padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--text-secondary);background:var(--bg-surface-subtle);border-bottom:1px solid var(--border-main);white-space:nowrap;line-height:1.2}
+.report-board-table td{padding:8px 12px;height:auto;min-height:0;vertical-align:middle;border-top:1px solid var(--border-subtle);color:var(--text-primary);font-size:13px;line-height:1.3}
+.report-board-table tbody tr{height:auto}
+.report-board-table .table-title{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.report-board-table .table-title strong{color:var(--text-primary);font-weight:600}
+
+/* Colunas Numéricas Tabulares */
+.report-board-table .num-col{text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.report-board-table .num-zero{color:var(--text-muted);font-weight:400;opacity:0.75}
+.report-board-table .num-with-icon{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px}
+.report-board-table .text-success{color:var(--chip-success-text)!important}
+.report-board-table .text-danger{color:var(--chip-danger-text)!important}
+
+/* Linhas Clicáveis e Acessibilidade */
+.summary-row-clickable{cursor:pointer;transition:background .15s ease}
+.summary-row-clickable:hover{background:var(--bg-surface-hover)}
+.summary-row-clickable:focus-visible{outline:2px solid var(--border-focus);outline-offset:-2px}
+
+/* Células numéricas interativas (filtro rápido por status) */
+.summary-cell-clickable{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px 6px;margin:-2px -4px;border-radius:4px;transition:background .15s ease, transform .1s ease}
+.summary-cell-clickable:hover{background:var(--bg-surface-subtle);text-decoration:underline}
+.summary-cell-clickable:focus-visible{outline:2px solid var(--border-focus);outline-offset:1px}
+
+/* Cabeçalho do Resumo com Botão de Exportar */
+.reports-summary-head-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.reports-summary-export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 11px;border-radius:6px}
+
+/* Barra de Progresso do Resumo por Quadro */
+.report-progress-cell{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.report-progress-bar{width:48px;height:5px;border-radius:9999px;background:var(--bg-surface-hover);border:1px solid var(--border-subtle);overflow:hidden;flex-shrink:0}
+.report-progress-fill{height:100%;border-radius:9999px;background:var(--chip-success-text);transition:width .2s ease}
+.report-progress-text{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
+
+/* Pílula de Story Points para Scrum */
+.scrum-points-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-variant-numeric:tabular-nums}
+.scrum-points-pill strong{color:var(--text-primary);font-weight:700}
+
+/* Linha de Total Consolidado */
+.summary-row-total{background:var(--bg-surface-subtle);border-top:2px solid var(--border-strong);border-bottom:2px solid var(--border-strong);font-weight:700}
+.summary-row-total td{padding:9px 12px}
+
+/* Linhas de Visão de Setor (Mirror) */
+.summary-row-mirror{background:var(--bg-surface-subtle)}
+.summary-row-mirror:hover{background:var(--bg-surface-hover)}
+.badge-mirror-note{display:block;font-size:10px;color:var(--text-muted);font-weight:normal;margin-top:2px}
+
+.status-cell-wrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.reports-overdue-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:var(--chip-danger-bg);color:var(--chip-danger-text);font-size:9px;font-weight:700}
+.reports-metric-icon.backlog{background:var(--chip-purple-bg);color:var(--chip-purple-text)}
+.reports-status.backlog{background:var(--chip-purple-bg);color:var(--chip-purple-text)}
+.text-success{color:var(--chip-success-text)!important}
+.text-danger{color:var(--chip-danger-text)!important}
+.text-warning{color:var(--chip-warning-text)!important}
+
+/* ==========================================================================
+   Somax Analytics V3: Presets de Período, Placar Executivo e Navegação por Abas
+   ========================================================================== */
+
+/* Barra de Presets Rápidos de Período */
+.reports-presets-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle);flex-wrap:wrap}
+.reports-presets-label{font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-right:2px}
+.preset-btn{height:28px;padding:0 12px;border-radius:9999px;border:1px solid var(--border-main);background:var(--bg-field);color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s ease}
+.preset-btn:hover{background:var(--bg-surface-hover);color:var(--text-primary);border-color:var(--border-strong)}
+.preset-btn.active{background:var(--primary-main);color:var(--primary-contrast);border-color:var(--primary-main);box-shadow:0 1px 2px rgba(0,0,0,0.08)}
+.preset-btn:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+
+/* Placar Executivo (3 Cards de Topo) */
+.reports-executive-bar{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:14px;margin-bottom:16px}
+.executive-card{text-align:left;background:var(--bg-surface);border:1px solid var(--border-main);border-radius:10px;padding:15px 17px;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:all .15s ease}
+.executive-card:hover{border-color:var(--border-strong);transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,0.04)}
+.executive-card.active{border-color:var(--border-focus);box-shadow:inset 0 0 0 1.5px var(--border-focus), 0 3px 8px rgba(0,0,0,0.04)}
+.executive-card:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+.executive-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.executive-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:0.02em}
+.executive-badge.success{background:var(--chip-success-bg);color:var(--chip-success-text);border:1px solid var(--chip-success-border)}
+.executive-badge.warning{background:var(--chip-warning-bg);color:var(--chip-warning-text);border:1px solid var(--chip-warning-border)}
+.executive-badge.info{background:var(--chip-info-bg);color:var(--chip-info-text);border:1px solid var(--chip-info-border)}
+.executive-link-hint{font-size:10px;font-weight:600;color:var(--primary-text);opacity:0.85}
+.executive-main-val{display:flex;align-items:baseline;gap:6px;margin:2px 0}
+.executive-main-val strong{font-size:24px;line-height:1.1;color:var(--text-primary);font-weight:700}
+.executive-main-val .text-danger{color:var(--chip-danger-text)!important}
+.executive-main-val .text-success{color:var(--chip-success-text)!important}
+.executive-unit{font-size:11px;font-weight:600;color:var(--text-secondary)}
+.executive-desc{font-size:11px;color:var(--text-muted);margin:0;line-height:1.4}
+.executive-alert-pill{color:var(--chip-danger-text);font-weight:600}
+
+/* Navegação por Abas */
+.reports-tabs-nav{display:flex;align-items:center;gap:6px;margin-bottom:16px;border-bottom:2px solid var(--border-main);overflow-x:auto;padding-bottom:0}
+.reports-tab-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border:0;background:transparent;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;position:relative;white-space:nowrap;transition:all .15s ease;border-bottom:2px solid transparent;margin-bottom:-2px}
+.reports-tab-btn:hover{color:var(--text-primary);background:var(--bg-surface-subtle)}
+.reports-tab-btn.active{color:var(--primary-text);border-bottom-color:var(--primary-main);font-weight:700}
+.reports-tab-btn:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+.tab-pill-warning{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:var(--chip-warning-bg);color:var(--chip-warning-text);font-size:10px;font-weight:700}
+.tab-pill-danger{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:var(--chip-danger-bg);color:var(--chip-danger-text);font-size:10px;font-weight:700}
+
+/* Painel de Conteúdo de Abas */
+.reports-tab-pane{display:grid;gap:16px}
+
+/* Caixa de Sucesso Vazio (Zero Gargalos / Zero Riscos) */
+.reports-empty-success-box{display:flex;align-items:center;gap:14px;padding:24px 20px;border-radius:8px;background:var(--chip-success-bg);border:1px solid var(--chip-success-border);color:var(--chip-success-text);margin:16px 19px}
+.reports-empty-success-box strong{display:block;font-size:14px;margin-bottom:2px}
+.reports-empty-success-box p{margin:0;font-size:12px;opacity:0.9}
+
+/* Aba 2: Gargalos na Esteira & Retenção */
+.reports-retention-list{padding:12px 19px 19px;display:grid;gap:12px}
+.retention-row{display:grid;grid-template-columns:180px 1fr 150px;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border-subtle)}
+.retention-row:last-child{border-bottom:0}
+.retention-info{display:flex;flex-direction:column;gap:2px}
+.retention-stage-name{font-size:12px;font-weight:700;color:var(--text-primary);padding-left:8px;border-left:3px solid transparent}
+.retention-task-count{font-size:10px;color:var(--text-muted);padding-left:8px}
+.retention-bar-track{height:8px;border-radius:9999px;background:var(--bg-surface-subtle);border:1px solid var(--border-subtle);overflow:hidden}
+.retention-bar-fill{height:100%;border-radius:9999px;transition:width .2s ease}
+.retention-bar-fill.rapido{background:var(--chip-success-text)}
+.retention-bar-fill.normal{background:var(--primary-main)}
+.retention-bar-fill.alerta{background:var(--chip-warning-text)}
+.retention-bar-fill.critico{background:var(--chip-danger-text)}
+.retention-stat{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.retention-stat strong{font-size:12px;font-variant-numeric:tabular-nums;color:var(--text-primary)}
+.retention-badge{display:inline-block;padding:2px 7px;border-radius:9999px;font-size:9px;font-weight:700;letter-spacing:0.02em}
+.retention-badge.rapido{background:var(--chip-success-bg);color:var(--chip-success-text)}
+.retention-badge.normal{background:var(--chip-info-bg);color:var(--chip-info-text)}
+.retention-badge.alerta{background:var(--chip-warning-bg);color:var(--chip-warning-text)}
+.retention-badge.critico{background:var(--chip-danger-bg);color:var(--chip-danger-text)}
+
+/* Tarefas Estagnadas */
+.reports-stagnant-content{padding:12px 19px 19px}
+.stagnant-tasks-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:12px}
+.stagnant-task-card{background:var(--bg-surface);border:1px solid var(--border-main);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:all .15s ease}
+.stagnant-task-card:hover{border-color:var(--border-strong);box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+.stagnant-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stagnant-badge-danger{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:4px;background:var(--chip-danger-bg);color:var(--chip-danger-text);font-size:10px;font-weight:700}
+.stagnant-title-btn{background:transparent;border:0;padding:0;text-align:left;font-size:13px;font-weight:600;color:var(--text-primary);cursor:pointer;line-height:1.3}
+.stagnant-title-btn:hover{color:var(--primary-text);text-decoration:underline}
+.stagnant-meta{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text-secondary)}
+.stagnant-meta strong{color:var(--text-muted);font-weight:600}
+
+/* Aba 3: Equipe & Capacidade */
+.reports-workload-content{padding:14px 19px 19px}
+.reports-workload-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));gap:14px}
+.workload-card{background:var(--bg-surface);border:1px solid var(--border-main);border-radius:9px;padding:16px;display:flex;flex-direction:column;gap:12px;transition:all .15s ease}
+.workload-card:hover{border-color:var(--border-strong);box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+.workload-card.sobrecarga{border-left:3px solid var(--chip-danger-text)}
+.workload-card.alerta{border-left:3px solid var(--chip-warning-text)}
+.workload-card.equilibrado{border-left:3px solid var(--chip-info-text)}
+.workload-card.disponivel{border-left:3px solid var(--border-strong)}
+.workload-card-head{display:flex;align-items:center;gap:10px}
+.workload-avatar{width:36px;height:36px;border-radius:9999px;background:var(--primary-subtle);color:var(--primary-text);font-size:13px;font-weight:700;display:grid;place-items:center;flex-shrink:0}
+.workload-person-info{display:flex;flex-direction:column;gap:3px;min-width:0}
+.workload-person-info strong{font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workload-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;width:fit-content}
+.workload-badge.sobrecarga{background:var(--chip-danger-bg);color:var(--chip-danger-text)}
+.workload-badge.alerta{background:var(--chip-warning-bg);color:var(--chip-warning-text)}
+.workload-badge.equilibrado{background:var(--chip-info-bg);color:var(--chip-info-text)}
+.workload-badge.disponivel{background:var(--chip-neutral-bg);color:var(--chip-neutral-text)}
+.workload-bar-box{display:grid;gap:5px}
+.workload-bar-label{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-secondary)}
+.workload-bar-label strong{color:var(--text-primary);font-variant-numeric:tabular-nums}
+.workload-track{height:7px;border-radius:9999px;background:var(--bg-surface-subtle);border:1px solid var(--border-subtle);overflow:hidden}
+.workload-fill{height:100%;border-radius:9999px;transition:width .2s ease}
+.workload-fill.sobrecarga{background:var(--chip-danger-text)}
+.workload-fill.alerta{background:var(--chip-warning-text)}
+.workload-fill.equilibrado{background:var(--chip-info-text)}
+.workload-fill.disponivel{background:var(--border-strong)}
+.workload-stats-row{display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;padding:8px 10px;background:var(--bg-surface-subtle);border-radius:6px;text-align:center}
+.workload-stat-col{display:flex;flex-direction:column;gap:1px}
+.workload-stat-col small{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.03em}
+.workload-stat-col strong{font-size:14px;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.workload-filter-btn{width:100%;justify-content:center;margin-top:2px}
+
+/* Aba 4: Pontualidade & Prazos */
+.punctuality-display-panel{padding:16px 19px 20px;display:grid;gap:16px}
+.punctuality-main-kpi{display:grid;grid-template-columns:140px 1fr;align-items:center;gap:20px;padding:16px 20px;background:var(--bg-surface-subtle);border:1px solid var(--border-subtle);border-radius:8px}
+.punctuality-circle-stat{display:flex;flex-direction:column;align-items:flex-start}
+.punctuality-circle-stat strong{font-size:36px;line-height:1;color:var(--text-primary);font-weight:800}
+.punctuality-circle-stat span{font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;margin-top:4px}
+.punctuality-progress-wrap{display:grid;gap:6px}
+.punctuality-progress-track{height:12px;border-radius:9999px;background:var(--bg-surface);border:1px solid var(--border-main);overflow:hidden}
+.punctuality-progress-fill{height:100%;border-radius:9999px;background:var(--chip-success-text);transition:width .3s ease}
+.punctuality-kpi-subtext{font-size:11px;color:var(--text-muted)}
+.punctuality-breakdown-grid{display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:12px}
+.punctuality-box{padding:14px;background:var(--bg-surface);border:1px solid var(--border-main);border-radius:8px;display:flex;align-items:center;gap:12px}
+.punctuality-box strong{display:block;font-size:18px;line-height:1.1;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.punctuality-box span{display:block;font-size:10px;color:var(--text-muted);margin-top:2px}
+
+/* Radar Preventivo de Prazos */
+.reports-risk-content{padding:12px 19px 19px}
+.risk-tasks-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:12px}
+.risk-task-card{background:var(--bg-surface);border:1px solid var(--border-main);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:all .15s ease}
+.risk-task-card:hover{border-color:var(--border-strong);box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+.risk-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.risk-badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:4px;font-size:10px;font-weight:700}
+.risk-badge.today{background:var(--chip-danger-bg);color:var(--chip-danger-text)}
+.risk-badge.tomorrow{background:var(--chip-warning-bg);color:var(--chip-warning-text)}
+.risk-badge.soon{background:var(--chip-info-bg);color:var(--chip-info-text)}
+.risk-title-btn{background:transparent;border:0;padding:0;text-align:left;font-size:13px;font-weight:600;color:var(--text-primary);cursor:pointer;line-height:1.3}
+.risk-title-btn:hover{color:var(--primary-text);text-decoration:underline}
+.risk-meta{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text-secondary)}
+.risk-meta strong{color:var(--text-muted);font-weight:600}
+
+/* Responsividade Somax Analytics V3 */
+@media(max-width:1050px){
+  .reports-executive-bar{grid-template-columns:1fr}
+  .punctuality-breakdown-grid{grid-template-columns:repeat(2, 1fr)}
+  .retention-row{grid-template-columns:140px 1fr 120px;gap:10px}
+}
+@media(max-width:650px){
+  .punctuality-main-kpi{grid-template-columns:1fr;gap:10px}
+  .punctuality-breakdown-grid{grid-template-columns:1fr}
+  .retention-row{grid-template-columns:1fr;gap:6px}
+  .retention-stat{justify-content:flex-start}
+}
+
+

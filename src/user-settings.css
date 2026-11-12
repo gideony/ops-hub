@@ -1,0 +1,37 @@
+.flow-toolbar{display:flex;justify-content:flex-end;margin:0 0 12px}
+.account-settings{max-width:1150px}
+.account-intro{display:flex;align-items:center;gap:16px;padding:23px 25px;margin-bottom:20px;background:#fff;border:1px solid #e9edf4;border-radius:12px}
+.account-avatar{width:62px;height:62px;flex:none;border-radius:50%;display:grid;place-items:center;background:#e7e3ff;color:#655bd1;font-size:20px;font-weight:800}
+.account-intro h2{font-size:17px;margin:0 0 4px}
+.account-intro p{font-size:11px;color:#768398;margin:0 0 8px}
+.account-role{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:#f0eeff;border-radius:5px;color:#695fd0;font-size:10px;font-weight:700}
+.account-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:18px;align-items:start}
+.account-side{display:grid;gap:18px}
+.account-panel{background:#fff;border:1px solid #e9edf4;border-radius:12px;overflow:hidden}
+.account-panel-heading{display:flex;align-items:flex-start;gap:11px;padding:19px 22px;border-bottom:1px solid #edf0f5;color:#7268d7}
+.account-panel-heading h2{font-size:13px;color:#252d3d;margin:0 0 4px}
+.account-panel-heading p{font-size:10px;color:#8b97a8;margin:0}
+.account-form{display:grid;gap:15px;padding:21px 22px}
+.account-form .field{font-size:10px}
+.account-form .field input{font-size:11px}
+.account-form .field input[readonly]{background:#f7f8fb;color:#798496;cursor:default}
+.account-form .btn{justify-self:start;margin-top:1px}
+.account-hint{font-size:10px;line-height:1.5;color:#8995a6;margin:0}
+.account-appearance{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:20px 22px}
+.account-appearance button{display:flex;align-items:center;gap:8px;border:1px solid #e0e5ee;border-radius:8px;background:#fff;color:#5e687b;padding:11px;font-size:11px;font-weight:650}
+.account-appearance button svg:last-child{margin-left:auto}
+.account-appearance button.selected{border-color:#8278e4;background:#f4f2ff;color:#6459ce}
+.account-access{display:grid;gap:13px;padding:19px 22px}
+.account-access>div{display:grid;gap:5px}
+.account-access span{font-size:10px;color:#919cab}
+.account-access strong{font-size:11px;font-weight:650}
+:root[data-theme='dark'] .account-intro,:root[data-theme='dark'] .account-panel{background:var(--dark-panel);border-color:var(--dark-border)}
+:root[data-theme='dark'] .account-panel-heading{border-color:var(--dark-border);color:#a5acff}
+:root[data-theme='dark'] .account-intro h2,:root[data-theme='dark'] .account-panel-heading h2,:root[data-theme='dark'] .account-access strong{color:var(--dark-text)}
+:root[data-theme='dark'] .account-intro p,:root[data-theme='dark'] .account-panel-heading p,:root[data-theme='dark'] .account-hint,:root[data-theme='dark'] .account-access span{color:var(--dark-muted)}
+:root[data-theme='dark'] .account-avatar,:root[data-theme='dark'] .account-role{background:#2d2b50;color:#c2c6ff}
+:root[data-theme='dark'] .account-form .field input[readonly]{background:#19191d;color:#a1a1aa}
+:root[data-theme='dark'] .account-appearance button{background:var(--dark-field);border-color:#3b3b43;color:var(--dark-text)}
+:root[data-theme='dark'] .account-appearance button.selected{background:#2c2c4d;border-color:#7d80e6;color:#cacdff}
+@media(max-width:800px){.account-grid{grid-template-columns:1fr}}
+@media(max-width:450px){.account-intro{padding:18px}.account-panel-heading{padding:17px}.account-form,.account-appearance,.account-access{padding:17px}.account-avatar{width:51px;height:51px;font-size:16px}.account-appearance{grid-template-columns:1fr}}
