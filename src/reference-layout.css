@@ -416,7 +416,6 @@ body{background:var(--bg-page)}
 .admin-form-intro{color:#718096;font-size:11px;line-height:1.5;margin:0}
 .stack-form .form-actions{margin-top:3px}
 @media(max-width:650px){.admin-toolbar{flex-wrap:wrap}.admin-toolbar .search{max-width:none;width:100%}.admin-toolbar .view-switch{margin-left:auto}}
-.modal{width:min(480px,calc(100vw - 24px));max-width:calc(100vw - 24px)}
 .modal-wide{width:min(850px,calc(100vw - 24px))}
 .modal .stack-form,.modal .field{min-width:0}
 .entry-list{display:grid;gap:12px}.entry-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) auto;gap:10px;align-items:end}.entry-remove{width:34px;height:34px;border:1px solid #e5e8ef;border-radius:7px;background:#fff;color:#b26a72;display:grid;place-items:center}.entry-add{justify-self:start}

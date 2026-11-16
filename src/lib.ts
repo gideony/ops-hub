@@ -20,6 +20,7 @@ export type ChecklistTemplateGroup = { id: string; name: string; description: st
 export type ChecklistTemplateItem = { id: string; group_id: string; title: string; position: number }
 export type BoardType = 'general' | 'sector_view' | 'custom'
 export type BoardMethodology = 'kanban' | 'scrum'
+export type BoardCompletionAction = 'ask' | 'suggest_default' | 'none'
 
 export type Board = {
   id: string
@@ -31,9 +32,13 @@ export type Board = {
   is_shared: boolean
   stage_ids: string[]
   position: number
+  color?: string | null
   created_by: string
   created_at: string
   updated_at: string
+  on_completion_action?: BoardCompletionAction
+  default_forward_board_id?: string | null
+  default_forward_stage_id?: string | null
 }
 
 export type BoardStage = {
@@ -108,10 +113,50 @@ export type ClientRegistrationSubmission = {
 }
 
 export type Tag = { id: string; name: string; color: string }
-export type Task = { id: string; title: string; description: string; team_id: string; assignee_id: string | null; client_id: string | null; stage_id: string; priority: 'baixa' | 'media' | 'alta' | 'urgente'; due_at: string | null; tags: string[]; completed_at: string | null; created_by: string; created_at: string; updated_at: string; board_id?: string | null; sprint_id?: string | null; story_points?: number | null; backlog_order?: number }
+export type Task = {
+  id: string
+  title: string
+  description: string
+  team_id: string
+  assignee_id: string | null
+  client_id: string | null
+  stage_id: string
+  priority: 'baixa' | 'media' | 'alta' | 'urgente'
+  due_at: string | null
+  tags: string[]
+  completed_at: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  board_id?: string | null
+  sprint_id?: string | null
+  story_points?: number | null
+  backlog_order?: number
+  origin_task_id?: string | null
+  root_task_id?: string | null
+  forwarded_at?: string | null
+  forwarded_by?: string | null
+}
+
+export type TaskLineageEvent = {
+  id: string
+  task_id: string
+  root_task_id: string
+  board_id?: string | null
+  board_name: string
+  board_color?: string | null
+  stage_id?: string | null
+  stage_name: string
+  event_type: 'created' | 'moved' | 'completed' | 'forwarded'
+  actor_id?: string | null
+  actor_name?: string | null
+  metadata?: Record<string, unknown>
+  created_at: string
+  is_masked?: boolean
+}
 export type Checklist = { id: string; task_id: string; title: string; done: boolean; position: number; group_name?: string | null }
 export type TaskComment = { id: string; task_id: string; author_id: string; body: string; created_at: string }
-export type Movement = { id: string; task_id: string; from_stage_id: string | null; to_stage_id: string; moved_by: string; moved_at: string }
+export type Movement = { id: string; task_id: string; from_stage_id: string | null; to_stage_id: string; moved_by: string; moved_at: string; from_stage_name?: string | null; to_stage_name?: string | null }
 export type Channel = { id: string; team_id: string; name: string; created_at: string }
 export type Message = { id: string; channel_id: string; author_id: string; body: string; reply_to_id: string | null; task_id: string | null; created_at: string }
 export type Attachment = { id: string; message_id: string; storage_path: string; file_name: string; size_bytes: number }
@@ -169,13 +214,49 @@ export function taskBuckets(
     week: tasks.filter(t => completed(t, allStages) && t.completed_at && new Date(t.completed_at) >= start),
   }
 }
+export function isUUID(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+export function isNetworkError(error: unknown): boolean {
+  if (!error) return false
+  if (typeof error === 'string') {
+    return error.includes('Failed to fetch') || error.includes('NetworkError') || error.toLowerCase().includes('network')
+  }
+  if (error instanceof Error) {
+    return error.message.includes('Failed to fetch') ||
+      (error.name === 'TypeError' && error.message.includes('fetch')) ||
+      error.message.includes('NetworkError') ||
+      error.name === 'NetworkError'
+  }
+  if (typeof error === 'object' && 'message' in error) {
+    const msg = String((error as { message: unknown }).message)
+    return msg.includes('Failed to fetch') || msg.includes('NetworkError')
+  }
+  return false
+}
+
 export function messageError(error: unknown): string {
   if (!error) return 'Erro desconhecido'
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
+  if (typeof error === 'string') {
+    if (error.includes('Failed to fetch')) {
+      return 'Falha de conexão com o servidor Supabase (Failed to fetch). Verifique sua conexão com a internet ou se extensões do navegador (adblock/firewall) estão bloqueando requisições para o Supabase.'
+    }
+    return error
+  }
+  if (error instanceof Error) {
+    if (error.message.includes('Failed to fetch') || error.name === 'TypeError' && error.message.includes('fetch')) {
+      return 'Falha de conexão com o servidor Supabase (Failed to fetch). Verifique sua conexão com a internet ou se extensões do navegador (adblock/firewall) estão bloqueando requisições para o Supabase.'
+    }
+    return error.message
+  }
   if (typeof error === 'object') {
     const err = error as Record<string, unknown>
     if (typeof err.message === 'string' && err.message) {
+      if (err.message.includes('Failed to fetch')) {
+        return 'Falha de conexão com o servidor Supabase (Failed to fetch). Verifique sua conexão com a internet ou se extensões do navegador (adblock/firewall) estão bloqueando requisições para o Supabase.'
+      }
       const details = typeof err.details === 'string' && err.details ? ` (${err.details})` : ''
       const hint = typeof err.hint === 'string' && err.hint ? ` - Dica: ${err.hint}` : ''
       return `${err.message}${details}${hint}`

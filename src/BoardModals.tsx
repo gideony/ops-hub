@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, ChevronRight, FolderKanban, Layers, Plus, Settings2, Sparkles, Trash2, X, Zap } from 'lucide-react'
-import type { Board, BoardMethodology, BoardStage, BoardType, Sprint } from './lib'
+import type { Board, BoardCompletionAction, BoardMethodology, BoardStage, BoardType, Sprint } from './lib'
 import type { Data } from './App'
 
 type CreateBoardProps = {
@@ -20,6 +20,9 @@ export function CreateBoardModal({ data, userId, canAdmin, onClose, onCreate }: 
   const [teamId, setTeamId] = useState<string>(data.teams[0]?.id || '')
   const [isShared, setIsShared] = useState(false)
   const [selectedStageIds, setSelectedStageIds] = useState<string[]>([])
+  const [onCompletionAction, setOnCompletionAction] = useState<BoardCompletionAction>('ask')
+  const [defaultForwardBoardId, setDefaultForwardBoardId] = useState<string>('')
+  const [defaultForwardStageId, setDefaultForwardStageId] = useState<string>('')
   const [customStages, setCustomStages] = useState<{ name: string; color: string; wip_limit: number | null; is_final: boolean }[]>([
     { name: 'Tarefas', color: '#94a3b8', wip_limit: null, is_final: false },
     { name: 'Em andamento', color: '#3b82f6', wip_limit: 3, is_final: false },
@@ -91,6 +94,9 @@ export function CreateBoardModal({ data, userId, canAdmin, onClose, onCreate }: 
       created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      on_completion_action: onCompletionAction,
+      default_forward_board_id: defaultForwardBoardId || null,
+      default_forward_stage_id: defaultForwardStageId || null,
     }
 
     const stagesToCreate = type === 'custom'
@@ -342,6 +348,49 @@ export function CreateBoardModal({ data, userId, canAdmin, onClose, onCreate }: 
             </fieldset>
           )}
 
+          <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 8, background: 'var(--bg-muted, #f8fafc)', border: '1px solid var(--border-subtle, #e2e8f0)' }}>
+            <label className="task-form-field" style={{ marginBottom: onCompletionAction === 'suggest_default' ? 10 : 0 }}>
+              <span style={{ fontWeight: 600 }}>Ao Concluir Tarefas Neste Quadro:</span>
+              <select
+                value={onCompletionAction}
+                onChange={e => setOnCompletionAction(e.target.value as BoardCompletionAction)}
+              >
+                <option value="ask">Perguntar sempre para onde encaminhar (Padrão)</option>
+                <option value="suggest_default">Sugerir destino padrão</option>
+                <option value="none">Não perguntar ao concluir (permitir apenas pelo botão)</option>
+              </select>
+            </label>
+
+            {onCompletionAction === 'suggest_default' && (
+              <div className="task-form-two" style={{ marginTop: 8 }}>
+                <label className="task-form-field">
+                  <span>Quadro de Destino Padrão</span>
+                  <select
+                    value={defaultForwardBoardId}
+                    onChange={e => setDefaultForwardBoardId(e.target.value)}
+                  >
+                    <option value="">Selecione o quadro padrão...</option>
+                    {data.boards.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="task-form-field">
+                  <span>Etapa Padrão</span>
+                  <select
+                    value={defaultForwardStageId}
+                    onChange={e => setDefaultForwardStageId(e.target.value)}
+                  >
+                    <option value="">Primeira etapa do quadro de destino</option>
+                    {data.stages.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
+
           {error && <p className="board-modal-error" role="alert">{error}</p>}
 
           <footer className="board-modal-actions">
@@ -502,6 +551,9 @@ export function EditBoardModal({ board, data, canAdmin: _canAdmin, onClose, onUp
   const [teamId, setTeamId] = useState<string>(board.team_id || data.teams[0]?.id || '')
   const [isShared, setIsShared] = useState(board.is_shared)
   const [selectedStageIds, setSelectedStageIds] = useState<string[]>(board.stage_ids || [])
+  const [onCompletionAction, setOnCompletionAction] = useState<BoardCompletionAction>(board.on_completion_action || 'ask')
+  const [defaultForwardBoardId, setDefaultForwardBoardId] = useState<string>(board.default_forward_board_id || '')
+  const [defaultForwardStageId, setDefaultForwardStageId] = useState<string>(board.default_forward_stage_id || '')
 
   const existingStages = data.boardStages
     .filter(s => s.board_id === board.id)
@@ -586,6 +638,9 @@ export function EditBoardModal({ board, data, canAdmin: _canAdmin, onClose, onUp
       is_shared: isShared,
       stage_ids: board.type === 'sector_view' ? selectedStageIds : [],
       updated_at: new Date().toISOString(),
+      on_completion_action: onCompletionAction,
+      default_forward_board_id: defaultForwardBoardId || null,
+      default_forward_stage_id: defaultForwardStageId || null,
     }
 
     const stagesToUpdate = board.type === 'custom'
@@ -796,6 +851,49 @@ export function EditBoardModal({ board, data, canAdmin: _canAdmin, onClose, onUp
               </button>
             </fieldset>
           )}
+
+          <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 8, background: 'var(--bg-muted, #f8fafc)', border: '1px solid var(--border-subtle, #e2e8f0)' }}>
+            <label className="task-form-field" style={{ marginBottom: onCompletionAction === 'suggest_default' ? 10 : 0 }}>
+              <span style={{ fontWeight: 600 }}>Ao Concluir Tarefas Neste Quadro:</span>
+              <select
+                value={onCompletionAction}
+                onChange={e => setOnCompletionAction(e.target.value as BoardCompletionAction)}
+              >
+                <option value="ask">Perguntar sempre para onde encaminhar (Padrão)</option>
+                <option value="suggest_default">Sugerir destino padrão</option>
+                <option value="none">Não perguntar ao concluir (permitir apenas pelo botão)</option>
+              </select>
+            </label>
+
+            {onCompletionAction === 'suggest_default' && (
+              <div className="task-form-two" style={{ marginTop: 8 }}>
+                <label className="task-form-field">
+                  <span>Quadro de Destino Padrão</span>
+                  <select
+                    value={defaultForwardBoardId}
+                    onChange={e => setDefaultForwardBoardId(e.target.value)}
+                  >
+                    <option value="">Selecione o quadro padrão...</option>
+                    {data.boards.filter(b => b.id !== board.id).map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="task-form-field">
+                  <span>Etapa Padrão</span>
+                  <select
+                    value={defaultForwardStageId}
+                    onChange={e => setDefaultForwardStageId(e.target.value)}
+                  >
+                    <option value="">Primeira etapa do quadro de destino</option>
+                    {data.stages.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
 
           {error && <p className="board-modal-error" role="alert">{error}</p>}
 

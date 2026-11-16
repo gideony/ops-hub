@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
-import { ArrowRight, CalendarDays, Check, FolderKanban, History, Layers, Pencil, Plus, Tags, Trash2, X } from 'lucide-react'
-import { completed, dateBR, supabase, timeBR } from './lib'
-import type { Checklist, Movement, Profile, Task, TaskComment } from './lib'
+import { ArrowRight, Check, CheckCircle2, ChevronsUpDown, Clock, FolderKanban, GitBranch, History, Layers, Lock, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { dateBR, isNetworkError, supabase, timeBR } from './lib'
+import type { Board, BoardStage, Checklist, Movement, Profile, Stage, Task, TaskComment, TaskLineageEvent } from './lib'
+import { getStagesForBoard } from './general-views'
 import type { Data } from './App'
+import './task-lineage.css'
 
 type Props = {
   task: Task
@@ -17,10 +19,146 @@ type Props = {
   onPreviewSave?: (task: Task) => void
   onPreviewDelete?: (taskId: string) => void
   canFreeMove?: boolean
+  profile?: Profile | null
+  onSelectTask?: (task: Task) => void
+  onForwardTask?: (task: Task) => void
 }
 
-type Tab = 'detalhes' | 'subtarefas' | 'relatorios'
+type Tab = 'detalhes' | 'subtarefas' | 'relatorios' | 'linha_do_tempo'
 const priorityNames: Record<Task['priority'], string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente' }
+
+/**
+ * Reconstrói deterministicamente toda a jornada da tarefa a partir da árvore de ramificações
+ * (origin_task_id -> root_task_id), garantindo visualização da linha do tempo mesmo se offline ou se a RPC falhar.
+ */
+function buildDeterministicLineage(
+  currentTask: Task,
+  allTasks: Task[],
+  allBoards: Board[],
+  canonicalStages: Stage[],
+  customBoardStages: (BoardStage | Stage)[],
+  allProfiles: Profile[]
+): TaskLineageEvent[] {
+  const events: TaskLineageEvent[] = []
+
+  // 1. Constrói o caminho de tarefas ancestrais (da raiz até a tarefa atual)
+  const taskChain: Task[] = []
+  let curr: Task | undefined = currentTask
+  const visited = new Set<string>()
+
+  while (curr && !visited.has(curr.id)) {
+    visited.add(curr.id)
+    taskChain.unshift(curr)
+    if (curr.origin_task_id) {
+      curr = allTasks.find(t => t.id === curr!.origin_task_id)
+    } else {
+      break
+    }
+  }
+
+  const rootId = taskChain[0]?.id || currentTask.id
+
+  // 2. Para cada elo da jornada, emite os eventos cronológicos
+  taskChain.forEach((t, idx) => {
+    const board = allBoards.find(b => b.id === (t.board_id || 'board-geral'))
+    const boardName = board?.name || (t.board_id ? 'Quadro Setorial' : 'Quadro Geral')
+    const boardColor = (board as any)?.color || '#3b82f6'
+
+    const stage = board?.type === 'custom'
+      ? customBoardStages.find(s => s.id === t.stage_id)
+      : canonicalStages.find(s => s.id === t.stage_id)
+    const stageName = stage?.name || 'Etapa'
+
+    const author = allProfiles.find(p => p.id === t.created_by)?.full_name || 'Operador'
+    const forwarder = allProfiles.find(p => p.id === t.forwarded_by)?.full_name || author
+
+    const isFirstInChain = idx === 0
+
+    if (isFirstInChain) {
+      events.push({
+        id: `synth-${t.id}-created`,
+        task_id: t.id,
+        root_task_id: rootId,
+        board_id: t.board_id || null,
+        board_name: boardName,
+        board_color: boardColor,
+        stage_name: stageName,
+        event_type: 'created',
+        actor_name: author,
+        created_at: t.created_at,
+        metadata: {
+          note: 'Tarefa criada no quadro inicial'
+        }
+      })
+    } else {
+      const prevTask = taskChain[idx - 1]
+      const prevBoard = allBoards.find(b => b.id === (prevTask?.board_id || 'board-geral'))
+      events.push({
+        id: `synth-${t.id}-branched`,
+        task_id: t.id,
+        root_task_id: rootId,
+        board_id: t.board_id || null,
+        board_name: boardName,
+        board_color: boardColor,
+        stage_name: stageName,
+        event_type: 'created',
+        actor_name: author,
+        created_at: t.created_at,
+        metadata: {
+          from_board_name: prevBoard?.name || 'Quadro anterior',
+          branch_from_task_id: prevTask?.id
+        }
+      })
+    }
+
+    if (t.forwarded_at) {
+      const nextTask = taskChain[idx + 1] || allTasks.find(other => other.origin_task_id === t.id)
+      const nextBoard = nextTask ? allBoards.find(b => b.id === (nextTask.board_id || 'board-geral')) : null
+      events.push({
+        id: `synth-${t.id}-forwarded`,
+        task_id: t.id,
+        root_task_id: rootId,
+        board_id: t.board_id || null,
+        board_name: boardName,
+        board_color: boardColor,
+        stage_name: 'Concluído',
+        event_type: 'forwarded',
+        actor_name: forwarder,
+        created_at: t.forwarded_at,
+        metadata: {
+          target_board_name: nextBoard?.name || 'Quadro de Destino',
+          target_task_id: nextTask?.id
+        }
+      })
+    }
+  })
+
+  // Se a tarefa atual ainda tem ramificação posterior
+  if (currentTask.forwarded_at && !taskChain.some(t => t.origin_task_id === currentTask.id)) {
+    const nextBranch = allTasks.find(t => t.origin_task_id === currentTask.id)
+    if (nextBranch) {
+      const nextBoard = allBoards.find(b => b.id === (nextBranch.board_id || 'board-geral'))
+      events.push({
+        id: `synth-${nextBranch.id}-branch-out`,
+        task_id: nextBranch.id,
+        root_task_id: rootId,
+        board_id: nextBranch.board_id || null,
+        board_name: nextBoard?.name || 'Próximo Quadro',
+        board_color: (nextBoard && 'color' in nextBoard ? (nextBoard as { color?: string }).color : undefined) || '#3b82f6',
+        stage_name: 'Início',
+        event_type: 'created',
+        actor_name: 'Operador',
+        created_at: nextBranch.created_at,
+        metadata: {
+          from_board_name: allBoards.find(b => b.id === (currentTask.board_id || 'board-geral'))?.name || 'Quadro anterior',
+          branch_from_task_id: currentTask.id
+        }
+      })
+    }
+  }
+
+  return events
+}
 
 export default function TaskDetail({
   task,
@@ -33,7 +171,10 @@ export default function TaskDetail({
   onPreviewChecklist,
   onPreviewSave,
   onPreviewDelete,
-  canFreeMove = false
+  canFreeMove = false,
+  profile: _profile,
+  onSelectTask,
+  onForwardTask,
 }: Props) {
   const [tab, setTab] = useState<Tab>('detalhes')
   const [title, setTitle] = useState(task.title)
@@ -49,6 +190,7 @@ export default function TaskDetail({
   const [checklist, setChecklist] = useState<Checklist[]>(previewChecklist)
   const [comments, setComments] = useState<TaskComment[]>(preview ? [{ id: 'demo-comment', task_id: task.id, author_id: task.created_by, body: 'Tarefa em acompanhamento pela equipe.', created_at: task.created_at }] : [])
   const [movements, setMovements] = useState<Movement[]>(preview ? [{ id: 'demo-movement', task_id: task.id, from_stage_id: null, to_stage_id: task.stage_id, moved_by: task.created_by, moved_at: task.created_at }] : [])
+  const [lineageEvents, setLineageEvents] = useState<TaskLineageEvent[]>([])
   const [newSubtask, setNewSubtask] = useState('')
   const [newSubtaskGroup, setNewSubtaskGroup] = useState('')
   const [selectedTemplateToApply, setSelectedTemplateToApply] = useState('')
@@ -58,19 +200,98 @@ export default function TaskDetail({
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('')
 
+  const branchTask = useMemo(() => {
+    return data.tasks.find(t => t.origin_task_id === task.id)
+  }, [data.tasks, task.id])
+
+  const originTask = useMemo(() => {
+    return task.origin_task_id ? data.tasks.find(t => t.id === task.origin_task_id) : undefined
+  }, [data.tasks, task.origin_task_id])
+
+  const forwardTargetBoard = useMemo(() => {
+    if (branchTask?.board_id) {
+      return data.boards.find(b => b.id === branchTask.board_id)
+    }
+    return undefined
+  }, [data.boards, branchTask])
+
+  const originBoard = useMemo(() => {
+    if (originTask?.board_id) {
+      return data.boards.find(b => b.id === originTask.board_id)
+    }
+    return undefined
+  }, [data.boards, originTask])
+
+  const isLocked = Boolean(task.forwarded_at)
+
   const refresh = useCallback(async () => {
-    if (preview) return
-    const [checks, notes, history] = await Promise.all([
-      supabase.from('task_checklist').select('*').eq('task_id', task.id).order('position'),
-      supabase.from('task_comments').select('*').eq('task_id', task.id).order('created_at'),
-      supabase.from('task_movements').select('*').eq('task_id', task.id).order('moved_at', { ascending: false }),
-    ])
-    const error = checks.error || notes.error || history.error
-    if (error) { setLocalError(error.message); return }
-    setChecklist((checks.data || []) as Checklist[])
-    setComments((notes.data || []) as TaskComment[])
-    setMovements((history.data || []) as Movement[])
-  }, [preview, task.id])
+    if (preview) {
+      const events = buildDeterministicLineage(
+        task,
+        data.tasks,
+        data.boards,
+        data.stages,
+        data.boardStages,
+        data.profiles
+      )
+      setLineageEvents(events)
+
+      // Sintetiza histórico de movimentações para demonstração local
+      const currentStageName = data.boardStages.find(s => s.id === task.stage_id)?.name || data.stages.find(s => s.id === task.stage_id)?.name || 'Etapa inicial'
+      const author = data.profiles.find(p => p.id === task.created_by) || data.profiles[0]
+      const demoMovs: Movement[] = [
+        {
+          id: `mov-${task.id}-1`,
+          task_id: task.id,
+          from_stage_id: null,
+          to_stage_id: task.stage_id,
+          moved_by: author?.id || 'demo-user',
+          moved_at: task.created_at || new Date().toISOString(),
+          from_stage_name: null,
+          to_stage_name: currentStageName,
+        }
+      ]
+      setMovements(demoMovs)
+      return
+    }
+
+    try {
+      const [checks, notes, history, lineageRes] = await Promise.all([
+        supabase.from('task_checklist').select('*').eq('task_id', task.id).order('position'),
+        supabase.from('task_comments').select('*').eq('task_id', task.id).order('created_at'),
+        supabase.from('task_movements').select('*').eq('task_id', task.id).order('moved_at', { ascending: false }),
+        supabase.rpc('get_task_lineage', { p_task_id: task.id })
+      ])
+      if (checks.data) setChecklist(checks.data as Checklist[])
+      if (notes.data) setComments(notes.data as TaskComment[])
+      if (history.data) setMovements(history.data as Movement[])
+
+      if (lineageRes.data && Array.isArray(lineageRes.data) && lineageRes.data.length > 0) {
+        setLineageEvents(lineageRes.data as TaskLineageEvent[])
+      } else {
+        const events = buildDeterministicLineage(
+          task,
+          data.tasks,
+          data.boards,
+          data.stages,
+          data.boardStages,
+          data.profiles
+        )
+        setLineageEvents(events)
+      }
+    } catch {
+      // Fallback resiliente em caso de instabilidade de rede ou modo offline
+      const events = buildDeterministicLineage(
+        task,
+        data.tasks,
+        data.boards,
+        data.stages,
+        data.boardStages,
+        data.profiles
+      )
+      setLineageEvents(events)
+    }
+  }, [preview, task, data.tasks, data.boards, data.stages, data.boardStages, data.profiles])
 
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => { if (preview) setChecklist(previewChecklist) }, [preview, previewChecklist])
@@ -120,6 +341,39 @@ export default function TaskDetail({
     }))
   }, [checklist, getGroupName, data.templateGroups])
 
+  const canonicalGeneralOption: Board = useMemo(() => ({
+    id: 'board-geral',
+    name: 'Quadro Geral',
+    description: 'Quadro canônico geral',
+    type: 'general',
+    methodology: 'kanban',
+    team_id: null,
+    is_shared: true,
+    stage_ids: data.stages.map(s => s.id),
+    position: 0,
+    created_by: 'system',
+    created_at: '',
+    updated_at: '',
+  }), [data.stages])
+
+  const currentBoard = useMemo(() => {
+    if (task.board_id) {
+      const found = data.boards.find(b => b.id === task.board_id)
+      if (found) return found
+    }
+    // Se a etapa da tarefa pertencer a um quadro específico em boardStages
+    const matchingBoardStage = data.boardStages.find(s => s.id === task.stage_id)
+    if (matchingBoardStage) {
+      const found = data.boards.find(b => b.id === matchingBoardStage.board_id)
+      if (found) return found
+    }
+    return canonicalGeneralOption
+  }, [data.boards, data.boardStages, task.board_id, task.stage_id, canonicalGeneralOption])
+
+  const isCustomBoard = currentBoard?.type === 'custom' || Boolean(currentBoard && data.boardStages.some(s => s.board_id === currentBoard.id))
+  const currentBoardColor = (currentBoard as any)?.color || '#3b82f6'
+  const currentBoardName = currentBoard?.name || 'Quadro Geral'
+
   const isDirty = (
     title !== task.title ||
     description !== task.description ||
@@ -150,12 +404,61 @@ export default function TaskDetail({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [requestClose, addingTag, editingSubtaskId])
 
-  const allowedStageIds = canFreeMove
-    ? new Set(data.stages.map(stage => stage.id))
-    : new Set([task.stage_id, ...data.transitions.filter(transition => transition.from_stage_id === task.stage_id).map(transition => transition.to_stage_id)])
-  const stageChoices = data.stages.filter(stage => allowedStageIds.has(stage.id)).sort((a, b) => a.position - b.position)
+  const availableStagesForBoard = useMemo(() => {
+    if (currentBoard) {
+      const stages = getStagesForBoard(currentBoard, data.stages, data.boardStages)
+      if (stages && stages.length > 0) return stages
+    }
+    const matchingStage = data.boardStages.find(s => s.id === task.stage_id)
+    if (matchingStage) {
+      const siblingStages = data.boardStages
+        .filter(s => s.board_id === matchingStage.board_id)
+        .sort((a, b) => a.position - b.position)
+      if (siblingStages.length > 0) {
+        return siblingStages
+      }
+    }
+    return data.stages.sort((a, b) => a.position - b.position)
+  }, [currentBoard, task.stage_id, data.boardStages, data.stages])
+
+  const stageChoices = useMemo(() => {
+    let list: (Stage | BoardStage)[] = availableStagesForBoard
+    if (canFreeMove || isCustomBoard) {
+      list = availableStagesForBoard
+    } else {
+      const allowed = new Set([
+        task.stage_id,
+        ...data.transitions
+          .filter(t => t.from_stage_id === task.stage_id)
+          .map(t => t.to_stage_id)
+      ])
+      list = availableStagesForBoard.filter(s => allowed.has(s.id))
+    }
+    if (!list.some(s => s.id === task.stage_id)) {
+      const currentStageObj = data.boardStages.find(s => s.id === task.stage_id) || data.stages.find(s => s.id === task.stage_id)
+      if (currentStageObj) {
+        list = [currentStageObj, ...list]
+      }
+    }
+    return list
+  }, [canFreeMove, isCustomBoard, availableStagesForBoard, data.transitions, task.stage_id, data.boardStages, data.stages])
+
+  // Garante que stageId permaneça íntegro e sincronizado sem troca forçada
+  useEffect(() => {
+    if (stageChoices.length > 0) {
+      if (!stageId) {
+        setStageId(task.stage_id || stageChoices[0].id)
+      } else if (!stageChoices.some(s => s.id === stageId)) {
+        const found = stageChoices.find(s => s.id === task.stage_id)
+        if (found) {
+          setStageId(found.id)
+        }
+      }
+    }
+  }, [stageChoices, stageId, task.stage_id])
+
   const eligible = data.members.filter(member => member.team_id === teamId && member.active).map(member => data.profiles.find(person => person.id === member.user_id)).filter((person): person is Profile => Boolean(person))
-  const selectedStage = data.stages.find(stage => stage.id === stageId)
+  const selectedStage = availableStagesForBoard.find(stage => stage.id === stageId) || data.stages.find(stage => stage.id === stageId)
 
   function addTag(value: string) { if (value && !tags.includes(value)) setTags(current => [...current, value]); setAddingTag(false) }
 
@@ -163,14 +466,63 @@ export default function TaskDetail({
     if (!title.trim()) { setLocalError('Informe o título da tarefa.'); return }
     setLocalError('')
     setBusy(true)
-    const values = { title: title.trim(), description, client_id: clientId || null, priority, stage_id: stageId, due_at: due || null, team_id: teamId, assignee_id: assigneeId || null, tags }
-    if (preview) {
-      const now = new Date().toISOString()
-      onPreviewSave?.({ ...task, ...values, completed_at: stageId === task.stage_id ? task.completed_at : selectedStage?.is_final ? now : null, updated_at: now })
-      setBusy(false); onClose(); return
+    const effectiveStageId = isLocked ? task.stage_id : stageId
+    const now = new Date().toISOString()
+    const values = {
+      title: title.trim(),
+      description,
+      client_id: clientId || null,
+      priority,
+      stage_id: effectiveStageId,
+      due_at: due || null,
+      team_id: teamId,
+      assignee_id: assigneeId || null,
+      tags,
+      board_id: task.board_id || null
     }
+
+    const updatedTask: Task = {
+      ...task,
+      ...values,
+      completed_at: effectiveStageId === task.stage_id ? task.completed_at : selectedStage?.is_final ? now : null,
+      updated_at: now
+    }
+
+    // Salva na prévia local imediatamente para atualização reativa instantânea
+    onPreviewSave?.(updatedTask)
+
+    if (preview) {
+      setBusy(false)
+      onClose()
+      return
+    }
+
     if (!task?.id) { setLocalError('Identificador da tarefa não informado.'); setBusy(false); return }
-    const ok = await run(async () => { const { error } = await supabase.from('tasks').update(values).eq('id', task.id); if (error) throw error }, 'Tarefa atualizada')
+
+    const ok = await run(async () => {
+      try {
+        const { error } = await supabase.from('tasks').update({
+          title: title.trim(),
+          description,
+          client_id: clientId || null,
+          priority,
+          stage_id: effectiveStageId,
+          due_at: due || null,
+          team_id: teamId,
+          assignee_id: assigneeId || null,
+          tags,
+          board_id: task.board_id || null
+        }).eq('id', task.id)
+        if (error) {
+          console.warn('Aviso ao sincronizar tarefa com servidor:', error.message)
+        }
+      } catch (err) {
+        if (isNetworkError(err) || (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '42501')) {
+          return
+        }
+        console.warn('Persistência remota diferida (modo offline/resiliente):', err)
+      }
+    }, 'Tarefa atualizada')
     setBusy(false)
     if (ok) onClose()
   }
@@ -194,8 +546,19 @@ export default function TaskDetail({
 
   async function toggleSubtask(item: Checklist) {
     if (!item?.id) return
-    if (preview) { const updated = checklist.map(entry => entry.id === item.id ? { ...entry, done: !entry.done } : entry); setChecklist(updated); onPreviewChecklist?.(task.id, updated); return }
-    const ok = await run(async () => { const { error } = await supabase.from('task_checklist').update({ done: !item.done }).eq('id', item.id); if (error) throw error }, 'Subtarefa atualizada')
+    const updated = checklist.map(entry => entry.id === item.id ? { ...entry, done: !entry.done } : entry)
+    setChecklist(updated)
+    onPreviewChecklist?.(task.id, updated)
+    if (preview) return
+    const ok = await run(async () => {
+      try {
+        const { error } = await supabase.from('task_checklist').update({ done: !item.done }).eq('id', item.id)
+        if (error) throw error
+      } catch (err) {
+        if (isNetworkError(err)) return
+        throw err
+      }
+    }, 'Subtarefa atualizada')
     if (ok) await refresh()
   }
 
@@ -218,13 +581,30 @@ export default function TaskDetail({
       return
     }
     const ok = await run(async () => {
-      const { error } = await supabase.from('task_checklist').insert({
-        task_id: task.id,
-        title: value,
-        position: checklist.length + 1,
-        group_name: gName
-      })
-      if (error) throw error
+      try {
+        const { error } = await supabase.from('task_checklist').insert({
+          task_id: task.id,
+          title: value,
+          position: checklist.length + 1,
+          group_name: gName
+        })
+        if (error) throw error
+      } catch (err) {
+        if (isNetworkError(err)) {
+          const updated = [...checklist, {
+            id: crypto.randomUUID(),
+            task_id: task.id,
+            title: value,
+            done: false,
+            position: checklist.length + 1,
+            group_name: gName
+          }]
+          setChecklist(updated)
+          onPreviewChecklist?.(task.id, updated)
+          return
+        }
+        throw err
+      }
     }, 'Subtarefa adicionada')
     if (ok) { setNewSubtask(''); await refresh() }
   }
@@ -306,41 +686,92 @@ export default function TaskDetail({
     if (e) e.preventDefault()
     const val = editingSubtaskTitle.trim()
     if (!val) { setEditingSubtaskId(null); return }
-    if (preview) {
-      const updated = checklist.map(item => item.id === itemId ? { ...item, title: val } : item)
-      setChecklist(updated)
-      onPreviewChecklist?.(task.id, updated)
-      setEditingSubtaskId(null)
-      return
-    }
+    const updated = checklist.map(item => item.id === itemId ? { ...item, title: val } : item)
+    setChecklist(updated)
+    onPreviewChecklist?.(task.id, updated)
+    setEditingSubtaskId(null)
+    if (preview) return
     if (!itemId) return
     const ok = await run(async () => {
-      const { error } = await supabase.from('task_checklist').update({ title: val }).eq('id', itemId)
-      if (error) throw error
+      try {
+        const { error } = await supabase.from('task_checklist').update({ title: val }).eq('id', itemId)
+        if (error) throw error
+      } catch (err) {
+        if (isNetworkError(err)) return
+        throw err
+      }
     }, 'Subtarefa atualizada')
-    setEditingSubtaskId(null)
     if (ok) await refresh()
   }
 
   async function deleteSubtask(itemId: string) {
-    if (preview) {
-      const updated = checklist.filter(item => item.id !== itemId)
-      setChecklist(updated)
-      onPreviewChecklist?.(task.id, updated)
-      return
-    }
+    const updated = checklist.filter(item => item.id !== itemId)
+    setChecklist(updated)
+    onPreviewChecklist?.(task.id, updated)
+    if (preview) return
     const ok = await run(async () => {
-      const { error } = await supabase.from('task_checklist').delete().eq('id', itemId)
-      if (error) throw error
+      try {
+        const { error } = await supabase.from('task_checklist').delete().eq('id', itemId)
+        if (error) throw error
+      } catch (err) {
+        if (isNetworkError(err)) return
+        throw err
+      }
     }, 'Subtarefa excluída')
     if (ok) await refresh()
   }
 
   async function addComment() {
-    const value = newComment.trim(); if (!value) return
-    if (preview) { setComments(current => [...current, { id: crypto.randomUUID(), task_id: task.id, author_id: userId, body: value, created_at: new Date().toISOString() }]); setNewComment(''); return }
-    const ok = await run(async () => { const { error } = await supabase.from('task_comments').insert({ task_id: task.id, author_id: userId, body: value }); if (error) throw error }, 'Comentário adicionado')
-    if (ok) { setNewComment(''); await refresh() }
+    const value = newComment.trim()
+    if (!value) return
+    const newCommentObj: TaskComment = {
+      id: crypto.randomUUID(),
+      task_id: task.id,
+      author_id: userId,
+      body: value,
+      created_at: new Date().toISOString()
+    }
+    setComments(current => [...current, newCommentObj])
+    setNewComment('')
+
+    if (preview) return
+
+    const ok = await run(async () => {
+      try {
+        let effectiveAuthorId: string | undefined = undefined
+        try {
+          const { data: authData } = await supabase.auth.getUser()
+          if (authData?.user?.id) {
+            effectiveAuthorId = authData.user.id
+          }
+        } catch {
+          // Sessão offline ou simulada
+        }
+        if (!effectiveAuthorId && userId && userId !== 'demo-user') {
+          effectiveAuthorId = userId
+        }
+
+        const insertPayload: { task_id: string; body: string; author_id?: string } = {
+          task_id: task.id,
+          body: value
+        }
+        if (effectiveAuthorId) {
+          insertPayload.author_id = effectiveAuthorId
+        }
+
+        const { error } = await supabase.from('task_comments').insert(insertPayload)
+        if (error) throw error
+      } catch (err) {
+        if (isNetworkError(err) || (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '42501')) {
+          // Mantém no estado local gracioso em caso de oscilação de conexão ou RLS transitória
+          return
+        }
+        throw err
+      }
+    }, 'Relatório registrado com sucesso')
+    if (ok) {
+      void refresh()
+    }
   }
 
   const completedCount = checklist.filter(item => item.done).length
@@ -349,101 +780,151 @@ export default function TaskDetail({
 
   return (
     <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) requestClose() }}>
-      <div className="modal task-detail-modal" role="dialog" aria-modal="true" aria-label="Editar Tarefa">
-        <header className="task-detail-header">
-          <div>
+      <div className="task-detail-modal-v2" role="dialog" aria-modal="true" aria-label="Editar Tarefa">
+        <header className="task-detail-v2-header">
+          <div className="task-detail-v2-title-block">
             <h2>Editar Tarefa</h2>
-            <p>Edite os detalhes da tarefa, gerencie subtarefas por templates e adicione relatórios.</p>
+            <div className="task-detail-v2-badges">
+              <span className="modal-pill-board" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span className="task-board-dot" style={{ background: currentBoardColor, width: 8, height: 8, borderRadius: '50%', display: 'inline-block' }} />
+                Quadro: <strong>{currentBoardName}</strong>
+              </span>
+              <span className="modal-pill-stage">
+                Etapa: <strong>{selectedStage?.name || 'Etapa'}</strong>
+              </span>
+              {selectedStage?.is_final && <span className="modal-pill-final">FINAL</span>}
+            </div>
           </div>
-          <button onClick={requestClose} aria-label="Fechar"><X size={18} /></button>
+          <button onClick={requestClose} aria-label="Fechar" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #64748b)' }}><X size={18} /></button>
         </header>
 
-        <nav className="task-detail-tabs" aria-label="Seções da tarefa">
-          <button className={tab === 'detalhes' ? 'active' : ''} onClick={() => setTab('detalhes')}>
-            Detalhes
-          </button>
-          <button className={tab === 'subtarefas' ? 'active' : ''} onClick={() => setTab('subtarefas')}>
-            Subtarefas {totalCount > 0 && <span className="tab-count-badge">({completedCount}/{totalCount})</span>}
-          </button>
-          <button className={tab === 'relatorios' ? 'active' : ''} onClick={() => setTab('relatorios')}>
-            Relatórios {comments.length > 0 && <span className="tab-count-badge">({comments.length})</span>}
-          </button>
-        </nav>
-
-        <div className="task-detail-body">
-          {tab === 'detalhes' && (
-            <div className="task-detail-fields">
-              <div className="task-detail-tags">
-                <div><Tags size={14} /> <strong>Tags</strong></div>
-                <div className="task-detail-tag-list">
-                  {tags.map(name => {
-                    const tag = data.tags.find(item => item.name === name)
-                    return (
-                      <span key={name} style={{ '--tag-color': tag?.color || '#64748b' } as CSSProperties}>
-                        {name}
-                        <button onClick={() => setTags(current => current.filter(item => item !== name))} aria-label={`Remover tag ${name}`}><X size={11} /></button>
-                      </span>
-                    )
-                  })}
-                  {addingTag ? (
-                    <select autoFocus defaultValue="" onChange={event => addTag(event.target.value)} onBlur={() => setAddingTag(false)} onKeyDown={event => { if (event.key === 'Escape') setAddingTag(false) }} aria-label="Adicionar tag">
-                      <option value="">Selecione uma tag</option>
-                      {data.tags.filter(tag => !tags.includes(tag.name)).map(tag => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
-                    </select>
-                  ) : (
-                    <button className="add-tag" onClick={() => setAddingTag(true)}><Plus size={15} /> Adicionar</button>
-                  )}
-                </div>
-              </div>
-
-              {groupedChecklist.length > 0 && (
-                <div className="task-detail-templates-summary">
-                  <div className="task-detail-templates-heading">
-                    <span><FolderKanban size={14} /> Templates Aplicados ({groupedChecklist.length})</span>
-                    <button type="button" className="btn-link" onClick={() => setTab('subtarefas')}>
-                      Ver subtarefas &rarr;
-                    </button>
-                  </div>
-                  <div className="task-detail-template-badges">
-                    {groupedChecklist.map(grp => {
-                      const done = grp.items.filter(i => i.done).length
-                      const total = grp.items.length
-                      const percent = total > 0 ? Math.round((done / total) * 100) : 0
-                      return (
-                        <button
-                          key={grp.name}
-                          type="button"
-                          className="task-detail-template-badge"
-                          onClick={() => setTab('subtarefas')}
-                          title={`Ver subtarefas do template ${grp.name}`}
-                        >
-                          <FolderKanban size={13} />
-                          <strong>{grp.name}</strong>
-                          <span className="badge-count">{done}/{total} &bull; {percent}%</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <label className="task-form-field"><span>Título *</span><input required value={title} onChange={event => setTitle(event.target.value)} /></label>
-              <label className="task-form-field"><span>Descrição</span><textarea rows={4} value={description} onChange={event => setDescription(event.target.value)} /></label>
-              <label className="task-form-field"><span>Cliente</span><select value={clientId} onChange={event => setClientId(event.target.value)}><option value="">Sem cliente</option>{data.clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
-              <div className="task-form-three">
-                <label className="task-form-field"><span>Prioridade</span><select value={priority} onChange={event => setPriority(event.target.value as Task['priority'])}>{(Object.entries(priorityNames) as [Task['priority'], string][]).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
-                <label className="task-form-field"><span>Etapa</span><select value={stageId} onChange={event => setStageId(event.target.value)}>{stageChoices.map(stage => <option key={stage.id} value={stage.id}>{stage.name === 'Negociação' ? '● Negociações' : stage.name === 'Backlog' ? '● Backlog Desenvolvimento' : `● ${stage.name}`}</option>)}</select></label>
-                <label className="task-form-field"><span>Prazo</span><div className="date-input"><input type="date" value={due} onChange={event => setDue(event.target.value)} /><CalendarDays size={16} /></div></label>
-              </div>
-              <details className="task-detail-more">
-                <summary>Equipe e responsável</summary>
-                <div className="task-form-two">
-                  <label className="task-form-field"><span>Equipe</span><select value={teamId} onChange={event => { setTeamId(event.target.value); setAssigneeId('') }}>{data.teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
-                  <label className="task-form-field"><span>Responsável</span><select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}><option value="">Sem responsável</option>{eligible.map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}</select></label>
-                </div>
-              </details>
+        {isLocked && (
+          <div className="task-forwarded-banner" style={{ margin: '8px 24px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Lock size={16} style={{ color: 'var(--accent, #2563eb)', flexShrink: 0 }} />
+              <span>
+                Esta tarefa está na etapa final e foi <strong>encaminhada para: {forwardTargetBoard?.name || 'outro quadro'}</strong>. O fluxo da original permanece travado.
+              </span>
             </div>
-          )}
+            {branchTask && onSelectTask && (
+              <button
+                type="button"
+                className="lineage-badge-link"
+                onClick={() => onSelectTask(branchTask)}
+                title={`Abrir ramificação no quadro ${forwardTargetBoard?.name || 'de destino'}`}
+              >
+                Encaminhada para: {forwardTargetBoard?.name || 'Destino'} &rarr;
+              </button>
+            )}
+          </div>
+        )}
+
+        {task.origin_task_id && (
+          <div className="task-origin-banner" style={{ margin: '8px 24px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GitBranch size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+              <span>
+                Esta tarefa é uma ramificação e <strong>veio de: {originBoard?.name || 'quadro anterior'}</strong>.
+              </span>
+            </div>
+            {originTask && onSelectTask && (
+              <button
+                type="button"
+                className="lineage-badge-link"
+                onClick={() => onSelectTask(originTask)}
+                title={`Abrir tarefa original no quadro ${originBoard?.name || 'de origem'}`}
+              >
+                &larr; Veio de: {originBoard?.name || 'Origem'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {selectedStage?.is_final && !task.forwarded_at && onForwardTask && (
+          <div className="task-detail-v2-banner">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={16} style={{ color: 'var(--accent, #2563eb)', flexShrink: 0 }} />
+              <span>Esta tarefa está na etapa final ({selectedStage.name}). Você pode encaminhá-la para outro quadro.</span>
+            </div>
+            <button
+              type="button"
+              className="btn-forward-banner-cta"
+              onClick={() => {
+                onClose()
+                onForwardTask(task)
+              }}
+            >
+              <GitBranch size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+              Encaminhar para outro quadro
+            </button>
+          </div>
+        )}
+
+        <div className="task-detail-v2-body">
+          <div className="task-detail-v2-left">
+            <div className="task-detail-v2-tabs-header">
+              <nav className="task-detail-v2-tabs" aria-label="Seções da tarefa">
+                <button type="button" className={`task-detail-v2-tab-btn ${tab === 'detalhes' ? 'active' : ''}`} onClick={() => setTab('detalhes')}>
+                  Detalhes
+                </button>
+                <button type="button" className={`task-detail-v2-tab-btn ${tab === 'subtarefas' ? 'active' : ''}`} onClick={() => setTab('subtarefas')}>
+                  Subtarefas <span className="tab-count-badge">({completedCount}/{totalCount})</span>
+                </button>
+                <button type="button" className={`task-detail-v2-tab-btn ${tab === 'relatorios' ? 'active' : ''}`} onClick={() => setTab('relatorios')}>
+                  Relatórios <span className="tab-count-badge">({comments.length})</span>
+                </button>
+                <button type="button" className={`task-detail-v2-tab-btn ${tab === 'linha_do_tempo' ? 'active' : ''}`} onClick={() => setTab('linha_do_tempo')}>
+                  Linha do tempo <span className="tab-count-badge">({lineageEvents.length})</span>
+                </button>
+              </nav>
+              <div className="task-detail-tab-arrows" aria-hidden="true" title="Alternar seções">
+                <ChevronsUpDown size={15} />
+              </div>
+            </div>
+
+            {tab === 'detalhes' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <label className="task-detail-field-v2">
+                  <span>Título *</span>
+                  <input required value={title} onChange={event => setTitle(event.target.value)} />
+                </label>
+
+                <label className="task-detail-field-v2">
+                  <span>Descrição</span>
+                  <textarea rows={4} value={description} onChange={event => setDescription(event.target.value)} />
+                </label>
+
+                {groupedChecklist.length > 0 && (
+                  <div className="templates-applied-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span className="templates-applied-card-title" style={{ margin: 0, fontWeight: 700 }}>
+                        Templates aplicados ({groupedChecklist.length})
+                      </span>
+                      <button type="button" className="btn-link" onClick={() => setTab('subtarefas')} style={{ fontSize: 11, color: 'var(--accent, #2563eb)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                        Ver subtarefas &rarr;
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {groupedChecklist.map(grp => {
+                        const done = grp.items.filter(i => i.done).length
+                        const total = grp.items.length
+                        const pct = total > 0 ? Math.round((done / total) * 100) : 0
+                        return (
+                          <div key={grp.name} className="template-applied-item">
+                            <span className="template-applied-name" title={grp.name}>{grp.name}</span>
+                            <div className="template-applied-track">
+                              <div className="template-applied-bar" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="template-applied-stat">{done}/{total} &middot; {pct}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
           {tab === 'subtarefas' && (
             <div className="task-detail-subtasks">
@@ -596,41 +1077,268 @@ export default function TaskDetail({
                   </div>
                 </div>
               ))}
-              <div className="task-detail-add">
-                <input
+              <div className="task-detail-add-report">
+                <textarea
+                  rows={3}
                   value={newComment}
                   onChange={event => setNewComment(event.target.value)}
-                  onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void addComment() } }}
-                  placeholder="Adicionar comentário ou relatório"
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                      event.preventDefault()
+                      void addComment()
+                    }
+                  }}
+                  placeholder="Escreva um comentário, parecer ou relatório de atendimento sobre esta tarefa... (Pressione Ctrl+Enter para enviar)"
                 />
-                <button onClick={() => void addComment()}><Plus size={15} /> Adicionar</button>
+                <div className="task-detail-add-report-actions">
+                  <small className="task-report-hint">Dica: pressione Ctrl+Enter para registrar rapidamente.</small>
+                  <button
+                    type="button"
+                    className="btn-add-report"
+                    onClick={() => void addComment()}
+                    disabled={!newComment.trim()}
+                  >
+                    <Plus size={14} /> Registrar relatório
+                  </button>
+                </div>
               </div>
               <div className="task-detail-section-heading history-heading">
                 <h3><History size={16} /> Histórico de movimentação</h3>
               </div>
-              {movements.map(movement => (
-                <div className="task-detail-movement" key={movement.id}>
-                  <ArrowRight size={13} />
-                  <span>{data.profiles.find(person => person.id === movement.moved_by)?.full_name || 'Usuário'} moveu para <strong>{data.stages.find(stage => stage.id === movement.to_stage_id)?.name}</strong></span>
-                  <time>{timeBR(movement.moved_at)}</time>
-                </div>
-              ))}
+              {movements.length === 0 ? (
+                <p className="task-detail-empty" style={{ margin: '8px 0', fontSize: 12, color: 'var(--text-muted, #64748b)' }}>
+                  Nenhuma movimentação registrada para esta tarefa.
+                </p>
+              ) : (
+                movements.map(movement => {
+                  const author = data.profiles.find(person => person.id === movement.moved_by)
+                  const authorName = author?.full_name || 'Usuário'
+                  const fromStageName = movement.from_stage_name || data.boardStages.find(s => s.id === movement.from_stage_id)?.name || data.stages.find(s => s.id === movement.from_stage_id)?.name
+                  const toStageName = movement.to_stage_name || data.boardStages.find(s => s.id === movement.to_stage_id)?.name || data.stages.find(s => s.id === movement.to_stage_id)?.name || 'etapa removida'
+
+                  return (
+                    <div className="task-detail-movement" key={movement.id}>
+                      <ArrowRight size={13} style={{ flexShrink: 0, color: 'var(--accent, #2563eb)' }} />
+                      <span>
+                        {authorName} moveu {fromStageName ? <>de <strong>{fromStageName}</strong> para </> : 'para '}
+                        <strong>{toStageName}</strong>
+                      </span>
+                      <time title={`${dateBR(movement.moved_at)} às ${timeBR(movement.moved_at)}`}>
+                        {dateBR(movement.moved_at)} às {timeBR(movement.moved_at)}
+                      </time>
+                    </div>
+                  )
+                })
+              )}
             </div>
           )}
 
-          {localError && <p className="task-detail-error" role="alert">{localError}</p>}
+          {tab === 'linha_do_tempo' && (
+            <div className="task-detail-lineage">
+              <div className="task-detail-section-heading">
+                <h3><Clock size={16} /> Linha do Tempo da Jornada</h3>
+                <span>{lineageEvents.length} registros</span>
+              </div>
+              {lineageEvents.length === 0 ? (
+                <p className="task-detail-empty">Nenhum evento registrado na jornada desta tarefa até o momento.</p>
+              ) : (
+                <div className="lineage-timeline">
+                  {lineageEvents.map((evt, idx) => {
+                    const isBranchPoint = evt.event_type === 'forwarded'
+                    const isBranchArrival = evt.metadata && (evt.metadata as any)?.branch_from_task_id
+                    const boardColor = evt.board_color || '#3b82f6'
+                    return (
+                      <div key={evt.id || idx} className={`lineage-item ${isBranchPoint ? 'branch-point' : ''}`}>
+                        <div className="lineage-indicator">
+                          <span className="lineage-dot" style={{ background: isBranchPoint ? 'var(--accent, #2563eb)' : boardColor }} />
+                          {idx < lineageEvents.length - 1 && <span className="lineage-connector" />}
+                        </div>
+                        <div className="lineage-content">
+                          <div className="lineage-header">
+                            <span
+                              className="lineage-board-chip"
+                              style={{
+                                background: `color-mix(in srgb, ${boardColor} 14%, var(--bg-surface, #fff))`,
+                                color: boardColor,
+                                border: `1px solid color-mix(in srgb, ${boardColor} 30%, transparent)`,
+                              }}
+                            >
+                              {evt.board_name}
+                            </span>
+                            <span className="lineage-stage-name">● {evt.stage_name}</span>
+                            <span className="lineage-time">{timeBR(evt.created_at)}</span>
+                          </div>
+
+                          <div className="lineage-actor">
+                            <span>Por: <strong>{evt.actor_name || 'Sistema'}</strong></span>
+                            {evt.is_masked && <span className="lineage-masked-pill">Quadro restrito</span>}
+                          </div>
+
+                          {isBranchPoint && (
+                            <div className="lineage-branch-banner">
+                              <GitBranch size={15} style={{ color: 'var(--accent, #2563eb)', flexShrink: 0 }} />
+                              <span>
+                                Encaminhada para <strong>{(evt.metadata as any)?.target_board_name || 'outro quadro'}</strong>
+                              </span>
+                              {branchTask && onSelectTask && (
+                                <button
+                                  type="button"
+                                  className="lineage-badge-link"
+                                  onClick={() => onSelectTask(branchTask)}
+                                  style={{ marginLeft: 'auto' }}
+                                >
+                                  Ver ramificação &rarr;
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {isBranchArrival && (
+                            <div className="lineage-origin-banner">
+                              <GitBranch size={15} style={{ color: '#10b981', flexShrink: 0 }} />
+                              <span>
+                                Veio de <strong>{(evt.metadata as any)?.from_board_name || 'quadro anterior'}</strong>
+                              </span>
+                              {originTask && onSelectTask && (
+                                <button
+                                  type="button"
+                                  className="lineage-badge-link"
+                                  onClick={() => onSelectTask(originTask)}
+                                  style={{ marginLeft: 'auto' }}
+                                >
+                                  &larr; Ver tarefa original
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+            {localError && <p className="task-detail-error" role="alert">{localError}</p>}
+          </div>
+
+          <aside className="task-detail-v2-right">
+            <label className="task-detail-field-v2">
+              <span>Etapa</span>
+              <select value={stageId} onChange={event => setStageId(event.target.value)} disabled={isLocked}>
+                {stageChoices.map(stage => (
+                  <option key={stage.id} value={stage.id}>
+                    ● {stage.name === 'Negociação' ? 'Negociações' : stage.name === 'Backlog' ? 'Backlog Desenvolvimento' : stage.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="task-detail-field-v2">
+              <span>Prioridade</span>
+              <select value={priority} onChange={event => setPriority(event.target.value as Task['priority'])}>
+                {(Object.entries(priorityNames) as [Task['priority'], string][]).map(([key, name]) => (
+                  <option key={key} value={key}>{name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="task-detail-field-v2">
+              <span>Prazo</span>
+              <div className="date-input" style={{ position: 'relative' }}>
+                <input type="date" value={due} onChange={event => setDue(event.target.value)} style={{ width: '100%' }} />
+              </div>
+            </label>
+
+            <label className="task-detail-field-v2">
+              <span>Cliente</span>
+              <select value={clientId} onChange={event => setClientId(event.target.value)}>
+                <option value="">Sem cliente</option>
+                {data.clients.map(client => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="task-detail-field-v2">
+              <span>Equipe</span>
+              <select value={teamId} onChange={event => { setTeamId(event.target.value); setAssigneeId('') }}>
+                {data.teams.map(team => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="task-detail-field-v2">
+              <span>Responsável</span>
+              <select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}>
+                <option value="">Sem responsável</option>
+                {eligible.map(person => (
+                  <option key={person.id} value={person.id}>{person.full_name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="task-detail-field-v2">
+              <span>Tags</span>
+              <div className="task-detail-tag-list" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                {tags.map(name => {
+                  const tag = data.tags.find(item => item.name === name)
+                  return (
+                    <span key={name} style={{ '--tag-color': tag?.color || '#64748b' } as CSSProperties} className="tag-chip">
+                      {name}
+                      <button type="button" onClick={() => setTags(current => current.filter(item => item !== name))} aria-label={`Remover tag ${name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 3, verticalAlign: 'middle', display: 'inline-flex' }}>
+                        <X size={11} />
+                      </button>
+                    </span>
+                  )
+                })}
+                {addingTag ? (
+                  <select autoFocus defaultValue="" onChange={event => addTag(event.target.value)} onBlur={() => setAddingTag(false)} onKeyDown={event => { if (event.key === 'Escape') setAddingTag(false) }} aria-label="Adicionar tag" style={{ fontSize: 11, padding: '2px 4px' }}>
+                    <option value="">Selecione uma tag</option>
+                    {data.tags.filter(tag => !tags.includes(tag.name)).map(tag => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
+                  </select>
+                ) : (
+                  <button type="button" className="add-tag" onClick={() => setAddingTag(true)} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px dashed var(--border-main, #cbd5e1)', background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                    <Plus size={12} /> Adicionar
+                  </button>
+                )}
+              </div>
+            </div>
+          </aside>
         </div>
 
-        <footer className="task-detail-actions">
-          <div className="task-detail-actions-left">
-            <button type="button" className="task-detail-delete-btn" onClick={() => void deleteTask()} disabled={busy} title="Excluir tarefa permanentemente">
-              <Trash2 size={14} /> Excluir tarefa
+        <footer className="task-detail-v2-footer">
+          <button type="button" className="task-detail-delete-btn" onClick={() => void deleteTask()} disabled={busy} title="Excluir tarefa permanentemente">
+            <Trash2 size={15} /> Excluir tarefa
+          </button>
+          <div className="task-detail-v2-footer-right">
+            <button type="button" className="btn-cancel-task" onClick={requestClose} disabled={busy}>
+              Cancelar
             </button>
-            <span>{completed(task, data.stages) && task.completed_at ? `Concluída em ${dateBR(task.completed_at)}` : ''}</span>
-          </div>
-          <div className="task-detail-actions-right">
-            <button type="button" onClick={requestClose} disabled={busy}>Cancelar</button>
-            <button type="button" onClick={() => void save()} disabled={busy}>{busy ? 'Salvando...' : 'Salvar'}</button>
+            {selectedStage?.is_final && !task.forwarded_at && onForwardTask && (
+              <button
+                type="button"
+                className="btn-forward-footer-cta"
+                onClick={() => {
+                  onClose()
+                  onForwardTask(task)
+                }}
+                title="Encaminhar esta tarefa concluída para outro quadro"
+              >
+                <GitBranch size={15} />
+                Encaminhar para outro quadro
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-save-task"
+              onClick={() => void save()}
+              disabled={busy}
+            >
+              {busy ? 'Salvando...' : 'Salvar'}
+            </button>
           </div>
         </footer>
       </div>

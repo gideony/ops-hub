@@ -371,4 +371,112 @@ describe('Fluxo de Auto-Cadastro de Clientes com Aprovação Humana', () => {
     expect(submission.reviewed_by).toBe(adminUser.id)
     expect(submission.review_notes).toBe('Cadastro suspeito de duplicidade.')
   })
+
+  it('deve aprovar e preservar financial_due_date como texto livre sem erro de tipo (datas ISO, dias ou texto)', () => {
+    const testCases = ['Todo dia 10', '15', '2026-11-10', '  Dia 25  ']
+
+    for (const testDueDate of testCases) {
+      const submission: ClientRegistrationSubmission = {
+        id: `sub-date-${Math.random()}`,
+        link_id: 'link-date',
+        client_id: null,
+        data: {
+          name: `Cliente Vencimento ${testDueDate}`,
+          contact_email: 'contato@cliente.example',
+          financial_due_date: testDueDate,
+        },
+        status: 'pending',
+        lgpd_accepted_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      }
+
+      const result = reviewSubmission(
+        submission,
+        'approve',
+        adminUser.id,
+        null
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.client).toBeDefined()
+      expect(result.client?.financial_due_date).toBe(testDueDate.trim())
+      expect(typeof result.client?.financial_due_date).toBe('string')
+    }
+  })
+
+  it('deve excluir cliente preservando e desvinculando tarefas existentes (client_id = null)', () => {
+    const clientsList: Client[] = [
+      {
+        id: 'client-1',
+        name: 'Cliente Alpha',
+        legal_name: 'Alpha Ltda',
+        contact_name: 'Carlos',
+        contact_email: 'carlos@alpha.example',
+        contact_phone: null,
+        financial_contact_name: null,
+        financial_email: null,
+        financial_whatsapp: null,
+        financial_due_date: '10',
+        financial_notes: null,
+        links: [],
+        integration_references: null,
+        integration_items: [],
+      },
+      {
+        id: 'client-2',
+        name: 'Cliente Beta',
+        legal_name: 'Beta S.A.',
+        contact_name: 'Bruna',
+        contact_email: 'bruna@beta.example',
+        contact_phone: null,
+        financial_contact_name: null,
+        financial_email: null,
+        financial_whatsapp: null,
+        financial_due_date: '20',
+        financial_notes: null,
+        links: [],
+        integration_references: null,
+        integration_items: [],
+      },
+    ]
+
+    const tasksList = [
+      { id: 'task-1', title: 'Tarefa do Alpha', client_id: 'client-1' },
+      { id: 'task-2', title: 'Outra tarefa do Alpha', client_id: 'client-1' },
+      { id: 'task-3', title: 'Tarefa do Beta', client_id: 'client-2' },
+    ]
+
+    // Simula a exclusão do client-1 por administrador
+    function simulateDeleteClient(clientId: string, userRole: string) {
+      if (userRole !== 'administrador') {
+        return { success: false, error: 'Apenas administradores podem excluir clientes.' }
+      }
+      const updatedClients = clientsList.filter(c => c.id !== clientId)
+      const updatedTasks = tasksList.map(t => (t.client_id === clientId ? { ...t, client_id: null } : t))
+      return { success: true, clients: updatedClients, tasks: updatedTasks }
+    }
+
+    // Tentativa por colaborador não-admin
+    const denied = simulateDeleteClient('client-1', 'colaborador')
+    expect(denied.success).toBe(false)
+    expect(denied.error).toContain('Apenas administradores')
+
+    // Execução por administrador
+    const allowed = simulateDeleteClient('client-1', 'administrador')
+    expect(allowed.success).toBe(true)
+    expect(allowed.clients).toBeDefined()
+    expect(allowed.clients!).toHaveLength(1)
+    expect(allowed.clients![0].id).toBe('client-2')
+
+    // Tarefas do client-1 devem estar desvinculadas (client_id === null) e mantidas
+    expect(allowed.tasks).toBeDefined()
+    expect(allowed.tasks!).toHaveLength(3)
+    const task1 = allowed.tasks!.find(t => t.id === 'task-1')
+    const task2 = allowed.tasks!.find(t => t.id === 'task-2')
+    const task3 = allowed.tasks!.find(t => t.id === 'task-3')
+
+    expect(task1?.client_id).toBeNull()
+    expect(task2?.client_id).toBeNull()
+    expect(task3?.client_id).toBe('client-2')
+  })
 })

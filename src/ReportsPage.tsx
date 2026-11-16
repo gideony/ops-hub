@@ -7,7 +7,9 @@ import {
   Clock,
   Download,
   FolderKanban,
+  GitBranch,
   Layers,
+  Lock,
   PauseCircle,
   Search,
   Timer,
@@ -176,7 +178,7 @@ export default function ReportsPage({ data, onTask }: Props) {
   }
 
   function exportCsv() {
-    const header = ['Tarefa', 'Quadro', 'Equipe', 'Responsável', 'Cliente', 'Etapa', 'Situação', 'Atrasada', 'Prioridade', 'Prazo', 'Criação', 'Conclusão']
+    const header = ['Tarefa', 'Quadro', 'Equipe', 'Responsável', 'Cliente', 'Etapa', 'Situação', 'Atrasada', 'Ramificação', 'Encaminhada', 'Prioridade', 'Prazo', 'Criação', 'Conclusão']
     const lines = [header, ...visible.map(task => {
       const disp = getTaskDisplay(task)
       return [
@@ -188,6 +190,8 @@ export default function ReportsPage({ data, onTask }: Props) {
         disp.stageName,
         disp.statusLabel,
         disp.overdue ? 'Sim' : 'Não',
+        task.origin_task_id ? 'Sim' : 'Não',
+        task.forwarded_at ? 'Sim' : 'Não',
         priorityNames[task.priority],
         task.due_at || '',
         task.created_at.slice(0, 10),
@@ -392,6 +396,17 @@ export default function ReportsPage({ data, onTask }: Props) {
             </select>
           </label>
 
+          <label className="field field-checkbox-inline" title="Exibe apenas as tarefas originais de cada jornada, ocultando ramificações para não inflar contagens">
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', height: '100%', paddingTop: '1.25rem' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(filters.hideBranches)}
+                onChange={event => setFilters(current => ({ ...current, hideBranches: event.target.checked }))}
+              />
+              Ocultar ramificações
+            </span>
+          </label>
+
           <button
             type="button"
             className="reports-clear"
@@ -407,6 +422,7 @@ export default function ReportsPage({ data, onTask }: Props) {
                 assigneeId: '',
                 clientId: '',
                 status: 'all',
+                hideBranches: false,
               })
               setQuery('')
             }}
@@ -1107,7 +1123,7 @@ export default function ReportsPage({ data, onTask }: Props) {
           <div>
             <h2>Tarefas do relatório</h2>
             <p>
-              {visible.length} {visible.length === 1 ? 'tarefa exibida' : 'tarefas exibidas'} · {statusNames[filters.status].toLowerCase()}
+              {visible.length} {visible.length === 1 ? 'tarefa exibida' : 'tarefas exibidas'} · {report.totals.journeys} {report.totals.journeys === 1 ? 'jornada única' : 'jornadas únicas'} · {statusNames[filters.status].toLowerCase()}
             </p>
           </div>
           <div className="search">
@@ -1137,11 +1153,60 @@ export default function ReportsPage({ data, onTask }: Props) {
             <tbody>
               {visible.map(task => {
                 const disp = getTaskDisplay(task)
+                const branchTask = task.forwarded_at ? data.tasks.find(x => x.origin_task_id === task.id) : undefined
+                const originTask = task.origin_task_id ? data.tasks.find(x => x.id === task.origin_task_id) : undefined
+                const targetBoardName = branchTask
+                  ? (allBoards.find(b => b.id === (branchTask.board_id || 'board-geral'))?.name || 'Geral')
+                  : 'Destino'
+                const originBoardName = originTask
+                  ? (allBoards.find(b => b.id === (originTask.board_id || 'board-geral'))?.name || 'Geral')
+                  : 'Origem'
+
                 return (
                   <tr key={task.id}>
                     <td>
                       <button type="button" className="table-title" onClick={() => onTask(task)}>
-                        {task.title}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span>{task.title}</span>
+                          {task.origin_task_id && (
+                            <span
+                              className={`task-card-branch-tag origin ${originTask ? 'clickable' : ''}`}
+                              style={{ margin: 0, padding: '1px 6px', fontSize: 11 }}
+                              role={originTask ? 'button' : undefined}
+                              tabIndex={originTask ? 0 : undefined}
+                              onClick={e => {
+                                if (originTask) {
+                                  e.stopPropagation()
+                                  onTask(originTask)
+                                }
+                              }}
+                              title={originTask ? `Veio de ${originBoardName}. Clique para abrir a tarefa original.` : `Veio de ${originBoardName}`}
+                            >
+                              <GitBranch size={10} />
+                              <span>Veio de: <strong>{originBoardName}</strong></span>
+                              {originTask && <span className="branch-tag-arrow">&rarr;</span>}
+                            </span>
+                          )}
+                          {task.forwarded_at && (
+                            <span
+                              className={`task-card-branch-tag forwarded ${branchTask ? 'clickable' : ''}`}
+                              style={{ margin: 0, padding: '1px 6px', fontSize: 11 }}
+                              role={branchTask ? 'button' : undefined}
+                              tabIndex={branchTask ? 0 : undefined}
+                              onClick={e => {
+                                if (branchTask) {
+                                  e.stopPropagation()
+                                  onTask(branchTask)
+                                }
+                              }}
+                              title={branchTask ? `Encaminhada para ${targetBoardName}. Clique para abrir a ramificação.` : `Encaminhada para ${targetBoardName}`}
+                            >
+                              <Lock size={10} />
+                              <span>Encaminhada para: <strong>{targetBoardName}</strong></span>
+                              {branchTask && <span className="branch-tag-arrow">&rarr;</span>}
+                            </span>
+                          )}
+                        </span>
                         <small>{clientName(task.client_id)}</small>
                       </button>
                     </td>

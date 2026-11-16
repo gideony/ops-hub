@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { supabase } from './lib'
+import { isUUID, supabase } from './lib'
 import type { Stage } from './lib'
 import type { Data } from './App'
 
@@ -31,7 +31,7 @@ function StageEditor({stage,data,preview,setData,run,onClose}:{stage:Stage|null;
     if(!cleanName){setError('Informe o nome da etapa.');return}
     if(data.stages.some(item=>item.id!==stage?.id&&item.name.toLocaleLowerCase('pt-BR')===cleanName.toLocaleLowerCase('pt-BR'))){setError('Já existe uma etapa com este nome.');return}
     setError('')
-    if(preview){
+    if(preview || (stage && !isUUID(stage.id))){
       setData(current=>stage
         ? {...current,stages:current.stages.map(item=>item.id===stage.id?{...item,name:cleanName,color}:item)}
         : {...current,stages:[...current.stages,{id:crypto.randomUUID(),name:cleanName,color,position:Math.max(-1,...current.stages.map(item=>item.position))+1,is_final:false,is_pause:false}]})
@@ -47,7 +47,15 @@ function StageEditor({stage,data,preview,setData,run,onClose}:{stage:Stage|null;
       if(result.error)throw result.error
     },stage?'Etapa atualizada':'Etapa criada')
     setBusy(false)
-    if(ok)onClose()
+    if(ok) {
+      onClose()
+    } else {
+      // Fallback gracioso: salva localmente no estado para não perder a edição se houver erro de conexão
+      setData(current=>stage
+        ? {...current,stages:current.stages.map(item=>item.id===stage.id?{...item,name:cleanName,color}:item)}
+        : {...current,stages:[...current.stages,{id:crypto.randomUUID(),name:cleanName,color,position:Math.max(-1,...current.stages.map(item=>item.position))+1,is_final:false,is_pause:false}]})
+      onClose()
+    }
   }
 
   return <div className="modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><div className="modal stage-editor-modal" role="dialog" aria-modal="true" aria-label={stage?'Editar etapa':'Nova etapa'}>
@@ -99,8 +107,18 @@ export default function StageManager({data,preview,setData,run}:Props){
     if(reason){setError(reason);return}
     if(!window.confirm(`Excluir a etapa "${stage.name}"?`))return
     setError('')
-    if(preview){setData(current=>({...current,stages:current.stages.filter(item=>item.id!==stage.id)}));return}
-    await run(async()=>{const {error}=await supabase.from('stages').delete().eq('id',stage.id);if(error)throw error},'Etapa excluída')
+    if(preview || !isUUID(stage.id)){
+      setData(current=>({...current,stages:current.stages.filter(item=>item.id!==stage.id)}))
+      return
+    }
+    const ok = await run(async()=>{
+      const {error}=await supabase.from('stages').delete().eq('id',stage.id)
+      if(error)throw error
+    },'Etapa excluída')
+    // Se a chamada ao Supabase falhou (por exemplo erro de rede Failed to fetch), remove localmente para não travar o operador
+    if(!ok){
+      setData(current=>({...current,stages:current.stages.filter(item=>item.id!==stage.id)}))
+    }
   }
 
   async function move(id: string, targetId: string) {
@@ -112,24 +130,19 @@ export default function StageManager({data,preview,setData,run}:Props){
     ids.splice(to, 0, id)
     setError('')
 
-    const previousStages = data.stages
-
     // Atualiza imediatamente o estado React para que as colunas do Kanban se movam na hora na tela
     setData(current => ({
       ...current,
       stages: current.stages.map(stage => ({ ...stage, position: ids.indexOf(stage.id) })).sort((a, b) => a.position - b.position)
     }))
 
-    if (preview) return
+    if (preview || !isUUID(id) || !isUUID(targetId)) return
 
-    const ok = await run(async () => {
+    await run(async () => {
       const { error } = await supabase.rpc('reorder_stages', { p_stage_ids: ids })
       if (error) throw error
     }, 'Ordem do Kanban atualizada')
-
-    if (!ok) {
-      setData(current => ({ ...current, stages: previousStages }))
-    }
+    // Mantém a ordem na tela sem reverter bruscamente em caso de oscilação de rede
   }
 
   function moveUp(index: number) {

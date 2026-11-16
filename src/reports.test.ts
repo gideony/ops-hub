@@ -129,7 +129,7 @@ describe('relatório de tarefas: regras básicas', () => {
 describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)', () => {
   const demoToday = '2026-11-11'
 
-  it('critério 1: soma exatamente 26 tarefas em Todos os meus quadros (17 Geral + 3 Suporte N1 + 6 App Mobile)', () => {
+  it('critério 1: soma exatamente 33 tarefas em Todos os meus quadros (17 Geral + 3 Suporte N1 + 6 App Mobile + 3 Comercial + 4 Implantação, sendo 1 ramificação)', () => {
     const report = buildReport(
       demoData.tasks,
       demoData.stages,
@@ -140,13 +140,18 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
       demoData.sprints,
     )
 
-    // Total líquido de todas as tarefas nos quadros
-    expect(report.totals.all).toBe(26)
+    // Total líquido de todas as tarefas nos quadros (inclui a ramificação no destino)
+    expect(report.totals.all).toBe(33)
+    expect(report.totals.branchesCount).toBe(1)
+    // O total de jornadas únicas desconsidera inflação por ramificação (root_task_id)
+    expect(report.totals.journeys).toBe(32)
 
     // Verificação de linhas do resumo por quadro
     const summaryGeral = report.boardSummaries.find(b => b.boardId === 'board-geral')
     const summarySup = report.boardSummaries.find(b => b.boardId === 'board-suporte-n1')
     const summaryApp = report.boardSummaries.find(b => b.boardId === 'board-app-mobile')
+    const summaryCom = report.boardSummaries.find(b => b.boardId === 'board-comercial-funil')
+    const summaryImp = report.boardSummaries.find(b => b.boardId === 'board-implantacao')
 
     expect(summaryGeral).toBeDefined()
     expect(summaryGeral?.total).toBe(17)
@@ -157,9 +162,39 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
     expect(summaryApp).toBeDefined()
     expect(summaryApp?.total).toBe(6)
 
+    expect(summaryCom).toBeDefined()
+    expect(summaryCom?.total).toBe(3)
+
+    expect(summaryImp).toBeDefined()
+    expect(summaryImp?.total).toBe(4) // 3 nativas + 1 ramificada de Comercial
+
     // Soma das tarefas dos quadros independentes bate com o total geral
-    const somaQuadros = (summaryGeral?.total || 0) + (summarySup?.total || 0) + (summaryApp?.total || 0)
-    expect(somaQuadros).toBe(26)
+    const somaQuadros =
+      (summaryGeral?.total || 0) +
+      (summarySup?.total || 0) +
+      (summaryApp?.total || 0) +
+      (summaryCom?.total || 0) +
+      (summaryImp?.total || 0)
+    expect(somaQuadros).toBe(33)
+  })
+
+  it('critério 1.1: filtro hideBranches oculta ramificações e totaliza as 32 jornadas originais', () => {
+    const reportSemRamificacoes = buildReport(
+      demoData.tasks,
+      demoData.stages,
+      { ...filters, boardId: 'all', hideBranches: true },
+      demoToday,
+      demoData.boardStages,
+      demoData.boards,
+      demoData.sprints,
+    )
+
+    expect(reportSemRamificacoes.totals.all).toBe(32)
+    expect(reportSemRamificacoes.totals.branchesCount).toBe(0)
+    expect(reportSemRamificacoes.totals.journeys).toBe(32)
+
+    const summaryImp = reportSemRamificacoes.boardSummaries.find(b => b.boardId === 'board-implantacao')
+    expect(summaryImp?.total).toBe(3) // 3 nativas (ramificação ocultada)
   })
 
   it('critério 2: visão por setor é filtro/espelho e não duplica tarefas no total consolidado', () => {
@@ -186,10 +221,10 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
 
     expect(summaryComercial?.total).toBe(tarefasSetorEsperadas)
 
-    // O total consolidado (26) NÃO inclui a soma de summaryComercial, que geraria duplicação
+    // O total consolidado (33) NÃO inclui a soma de summaryComercial, que geraria duplicação
     const totalComDuplicacao = report.boardSummaries.reduce((acc, row) => acc + row.total, 0)
-    expect(totalComDuplicacao).toBeGreaterThan(26) // Prova que somar ingenuamente duplicaria
-    expect(report.totals.all).toBe(26) // Prova que buildReport mantém o total desduplicado
+    expect(totalComDuplicacao).toBeGreaterThan(33) // Prova que somar ingenuamente duplicaria
+    expect(report.totals.all).toBe(33) // Prova que buildReport mantém o total desduplicado
   })
 
   it('critério 3: status mutuamente exclusivos somam exatamente o total (active + done + blocked + backlog = all)', () => {

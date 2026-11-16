@@ -17,6 +17,7 @@ export type ReportFilters = {
   clientId: string
   status: ReportFilterStatus
   preset?: PeriodPreset
+  hideBranches?: boolean
 }
 
 export type StageDisplayInfo = {
@@ -42,6 +43,8 @@ export type BoardSummaryRow = {
   progressPercent: number
   totalStoryPoints: number
   doneStoryPoints: number
+  branchesCount?: number
+  journeys?: number
 }
 
 export type ReportTotals = {
@@ -54,6 +57,8 @@ export type ReportTotals = {
   progressPercent: number
   totalStoryPoints: number
   doneStoryPoints: number
+  journeys: number
+  branchesCount: number
 }
 
 export type PunctualityMetrics = {
@@ -262,6 +267,9 @@ export function buildReport(
     if (filters.assigneeId && task.assignee_id !== filters.assigneeId) return false
     if (filters.clientId && task.client_id !== filters.clientId) return false
 
+    // Filtro de Ramificações (ocultar tarefas que são ramificações de outras tarefas)
+    if (filters.hideBranches && task.origin_task_id) return false
+
     // Filtro de Dimensão: Quadro
     if (selectedBoardId === 'all') {
       // "Todos os meus quadros": soma tarefas do Geral + tarefas de quadros personalizados.
@@ -319,6 +327,8 @@ export function buildReport(
     progressPercent: 0,
     totalStoryPoints: 0,
     doneStoryPoints: 0,
+    journeys: 0,
+    branchesCount: 0,
   }
 
   const teamCounts = new Map<string, number>()
@@ -344,6 +354,9 @@ export function buildReport(
   totals.progressPercent = totals.all > 0 ? Math.round((totals.done / totals.all) * 100) : 0
   totals.totalStoryPoints = processed.reduce((sum, p) => sum + (p.task.story_points || 0), 0)
   totals.doneStoryPoints = processed.filter(p => p.status === 'done').reduce((sum, p) => sum + (p.task.story_points || 0), 0)
+  const uniqueJourneys = new Set(processed.map(p => p.task.root_task_id || p.task.id))
+  totals.journeys = uniqueJourneys.size
+  totals.branchesCount = processed.filter(p => !!p.task.origin_task_id).length
 
   // 4. Quadro-Resumo de Indicadores por Quadro (Board Summaries)
   const canonicalGeneral: Board = boards.find(b => b.id === 'board-geral') || {
@@ -397,6 +410,8 @@ export function buildReport(
       progressPercent,
       totalStoryPoints,
       doneStoryPoints,
+      branchesCount: boardTasks.filter(p => !!p.task.origin_task_id).length,
+      journeys: new Set(boardTasks.map(p => p.task.root_task_id || p.task.id)).size,
     }
     return row
   })

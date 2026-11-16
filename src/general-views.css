@@ -1,0 +1,672 @@
+/* ==========================================================================
+   Somax Hub — Estilos dos Modos de Visualização da Aba Geral (Lateral e Consolidado)
+   Totalmente integrado aos tokens semânticos e aos temas claro/escuro (WCAG AA)
+   ========================================================================== */
+
+/* Barra Superior de Controles da Aba Geral */
+.general-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.general-toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.general-toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Seletor Segmentado de Modo (Lateral vs Consolidado) */
+.general-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.general-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.general-mode-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+.general-mode-btn.selected {
+  background: var(--bg-surface);
+  color: var(--primary-main);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Seletor de Situação (Em andamento / Concluídas / Todas) */
+.general-situation-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.general-situation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.general-situation-btn:hover {
+  color: var(--text-primary);
+}
+
+.general-situation-btn.selected {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Seletor de Filtro de Quadros */
+.general-board-select {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.general-board-select:focus {
+  border-color: var(--border-focus);
+}
+
+/* ==========================================================================
+   MODO 1: GERAL LATERAL (Quadros lado a lado com rolagem horizontal)
+   ========================================================================== */
+
+.general-lateral-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Linha "Ir para:" com fichas coloridas */
+.general-quick-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.general-quick-nav-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.general-quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.general-quick-chip:hover {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+  color: var(--primary-main);
+  transform: translateY(-1px);
+}
+
+.general-quick-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Área de Rolagem dos Blocos de Quadros */
+.general-lateral-scroll {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding: 4px 2px 16px 2px;
+  scroll-behavior: smooth;
+}
+
+/* Bloco de um Quadro Individual */
+.general-board-block {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 14px;
+  padding: 12px;
+  min-width: fit-content;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.general-board-block.is-dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.general-board-block.is-drop-target {
+  border-color: var(--primary-main);
+  box-shadow: 0 0 0 2px var(--primary-subtle);
+}
+
+/* Cabeçalho do Bloco */
+.general-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 12px;
+}
+
+.general-block-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.general-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.general-drag-handle:hover {
+  background: var(--bg-surface-subtle);
+  color: var(--text-primary);
+}
+
+.general-block-color-bar {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.general-block-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.general-methodology-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--chip-info-bg);
+  color: var(--chip-info-text);
+  border: 1px solid var(--chip-info-border);
+}
+
+.general-methodology-badge.scrum {
+  background: #ede9fe;
+  color: #6b21a8;
+  border-color: #ddd6fe;
+}
+
+.general-block-counts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.general-count-chip {
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: var(--bg-surface-subtle);
+  color: var(--text-secondary);
+}
+
+.general-count-chip.active {
+  background: var(--chip-info-bg);
+  color: var(--chip-info-text);
+}
+
+.general-count-chip.done {
+  background: var(--chip-success-bg);
+  color: var(--chip-success-text);
+}
+
+/* Colunas Kanban do Bloco */
+.general-block-kanban {
+  display: flex;
+  gap: 12px;
+  min-height: 200px;
+}
+
+.general-board-block .kanban-col {
+  width: 210px !important;
+  min-width: 210px !important;
+  max-width: 210px !important;
+}
+
+.general-accordion-body .kanban-col {
+  width: 230px !important;
+  min-width: 230px !important;
+  max-width: 230px !important;
+}
+
+/* Mensagem de Apoio no Rodapé */
+.general-footer-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-main);
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* ==========================================================================
+   MODO 2: GERAL CONSOLIDADO (Lista de faixas/raias verticais expansíveis)
+   ========================================================================== */
+
+.general-accordion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.general-accordion-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.general-accordion-item.is-expanded {
+  border-color: var(--border-strong);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+}
+
+/* Cabeçalho da Faixa (Raia) */
+.general-accordion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-surface);
+  transition: background 0.15s ease;
+  gap: 12px;
+}
+
+.general-accordion-head:hover {
+  background: var(--bg-surface-subtle);
+}
+
+.general-accordion-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.general-accordion-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.general-accordion-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.general-accordion-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.general-btn-open-board {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.general-btn-open-board:hover {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+}
+
+.general-accordion-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.general-accordion-toggle-btn:hover {
+  background: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+/* Corpo da Faixa Expandida */
+.general-accordion-body {
+  padding: 16px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-page);
+  overflow-x: auto;
+}
+
+/* ==========================================================================
+   ELEMENTOS COMPARTILHADOS & CARD DO GERAL
+   ========================================================================== */
+
+/* Etiqueta de Quadro no Card */
+.task-board-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-board-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Indicador de Reordenação de Abas */
+.tab-drop-indicator-left {
+  box-shadow: -4px 0 0 0 var(--accent, #2563eb) !important;
+}
+
+.tab-drop-indicator-right {
+  box-shadow: 4px 0 0 0 var(--accent, #2563eb) !important;
+}
+
+/* Botões de Acessibilidade para Mover Abas */
+.tab-accessible-reorder {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.tab-reorder-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tab-reorder-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-subtle);
+}
+
+.tab-reorder-btn:focus-visible {
+  outline: 2px solid var(--primary-main);
+}
+
+/* Paginação / "Ver mais" em Colunas Longas */
+.kanban-see-more-btn {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary-text);
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-main);
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: all 0.15s ease;
+}
+
+.kanban-see-more-btn:hover {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+}
+
+/* Toast de Bloqueio de Arrasto Inter-quadros */
+.inter-board-warning-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #1e293b;
+  color: #ffffff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 9999;
+  animation: slideInUp 0.2s ease-out;
+}
+
+/* Estado Vazio de Quadros */
+.general-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-main);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.general-empty-state-icon {
+  color: var(--text-muted);
+}
+
+.general-empty-state h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.general-empty-state p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 420px;
+  margin: 0;
+}
+
+/* Reordenação no Modo Consolidado (Acordeom) */
+.general-accordion-order-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+}
+
+.general-accordion-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.general-accordion-drag-handle:hover {
+  background: var(--bg-surface-subtle);
+  color: var(--text-primary);
+}
+
+.general-accordion-drag-handle:active {
+  cursor: grabbing;
+}
+
+.general-accordion-order-buttons {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.accordion-btn-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 1px 2px;
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.accordion-btn-order:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-surface-subtle);
+}
+
+.accordion-btn-order:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.general-accordion-item.is-dragging {
+  opacity: 0.5;
+  border: 1px dashed var(--primary-main);
+}
+
+.general-accordion-item.is-drop-target {
+  box-shadow: 0 -3px 0 0 var(--primary-main);
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

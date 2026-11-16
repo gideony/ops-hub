@@ -1,0 +1,361 @@
+/* ==========================================================================
+   Somax Hub — Estilos do Dashboard Aprimorado
+   Integrado aos tokens semânticos (theme-tokens.css), dark mode e WCAG AA
+   ========================================================================== */
+
+/* Barra de Ações Rápidas no Cabeçalho */
+.dashboard-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard-heading-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Barra de Filtro de Escopo do Dashboard */
+.dashboard-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-scope-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.dashboard-scope-select {
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.dashboard-scope-select:focus-visible {
+  border-color: var(--border-focus);
+}
+
+.dashboard-scope-badge {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* Banner de Alerta de Limite WIP (Gargalos) */
+.dashboard-wip-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: color-mix(in srgb, #f59e0b 12%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  border-radius: 10px;
+  padding: 12px 18px;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+  font-size: 13px;
+  flex-wrap: wrap;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.dashboard-wip-alert-icon {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.dashboard-wip-alert-content {
+  flex: 1;
+  min-width: 200px;
+}
+
+.dashboard-wip-alert-content strong {
+  color: #b45309;
+}
+
+.dashboard-wip-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.dashboard-wip-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dashboard-wip-chip:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+/* Card de Destaque da Sprint Ativa (Scrum) */
+.dashboard-sprint-widget {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-left: 4px solid var(--primary-main);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-sprint-info {
+  flex: 1;
+  min-width: 250px;
+}
+
+.dashboard-sprint-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.dashboard-sprint-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.dashboard-sprint-board-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.dashboard-sprint-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.dashboard-sprint-goal {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.dashboard-sprint-metrics {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.dashboard-sprint-metric-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+}
+
+.dashboard-sprint-metric-col span {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.dashboard-sprint-metric-col strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dashboard-sprint-progress-bar {
+  width: 120px;
+  height: 6px;
+  background: var(--bg-surface-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.dashboard-sprint-progress-fill {
+  height: 100%;
+  background: var(--primary-main);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.dashboard-sprint-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dashboard-sprint-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+  color: var(--primary-main);
+}
+
+/* Enriquecimento do Card de Prioridades */
+.priority-board-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+  border: 1px solid transparent;
+}
+
+.priority-checklist-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+/* Painel de Capacidade / Distribuição de Equipes */
+.team-load-panel {
+  margin-top: 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.team-load-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.team-load-card {
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-load-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.team-load-card-head strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.team-load-card-head span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-main);
+}
+
+.team-load-bar {
+  height: 5px;
+  background: var(--border-main);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.team-load-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.team-unassigned-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #b45309;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .dashboard-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dashboard-sprint-widget {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dashboard-sprint-metrics {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .dashboard-sprint-metric-col {
+    text-align: left;
+  }
+  .dashboard-sprint-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

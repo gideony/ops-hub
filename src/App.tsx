@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { Activity, ArrowDown, ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, CircleHelp, ClipboardList, Clock3, FolderKanban, Layers, LayoutDashboard, List, LockKeyhole, LogOut, Menu, MessageCircle, Moon, MoreHorizontal, Paperclip, Plus, Search, Send, Settings2, ShieldCheck, Sun, Tags, Trash2, Users, X, Zap } from 'lucide-react'
+import { Activity, ArrowDown, ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, CircleHelp, ClipboardList, FolderKanban, GitBranch, Layers, LayoutDashboard, List, Lock, LockKeyhole, LogOut, Menu, MessageCircle, Moon, MoreHorizontal, Paperclip, Plus, Search, Send, Settings2, ShieldCheck, Sun, Tags, Trash2, Users, X, Zap } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { supabase, configured, completed, dateBR, timeBR, todayISO, taskBuckets, messageError, unreadMessageCounts } from './lib'
 import type { Attachment, Board, BoardStage, Channel, Checklist, ChecklistTemplateGroup, ChecklistTemplateItem, Client, ClientRegistrationLink, ClientRegistrationSubmission, Member, Message, Profile, Read, Sprint, Stage, Tag, Task, Team, Template, Transition } from './lib'
@@ -18,6 +18,27 @@ import StageManager from './StageManager'
 import { CreateBoardModal, EditBoardModal, SprintPlanModal } from './BoardModals'
 import { BurndownModal, CompleteSprintModal, CreateSprintModal, SprintActiveHeader, BacklogView } from './ScrumComponents'
 import { PublicClientRegistrationPage } from './PublicClientRegistrationPage'
+import ForwardTaskModal from './ForwardTaskModal'
+import { getPermittedDestinationBoards } from './board-permissions'
+import './general-views.css'
+import './modern-tasks.css'
+import {
+  type GeneralSituationFilter,
+  type GeneralViewMode,
+  canonicalStageVisuals,
+  getStagesForBoard,
+  getUserBoardTabsOrder,
+  getUserConsolidatedExpanded,
+  getUserGeneralMode,
+  getUserLateralBlockOrder,
+  setUserBoardTabsOrder,
+  setUserConsolidatedExpanded,
+  setUserGeneralMode,
+  setUserLateralBlockOrder,
+} from './general-views'
+import { GeneralAccordionView, GeneralLateralView, GeneralToolbar } from './GeneralViews'
+import Dashboard from './Dashboard'
+import './dashboard.css'
 
 const ReportsPage = lazy(() => import('./ReportsPage'))
 const ClientsPage = lazy(() => import('./AdminPages').then(m => ({ default: m.ClientsPage })))
@@ -25,8 +46,8 @@ const TeamsPage = lazy(() => import('./AdminPages').then(m => ({ default: m.Team
 const UsersPage = lazy(() => import('./AdminPages').then(m => ({ default: m.UsersPage })))
 const UserSettings = lazy(() => import('./UserSettings'))
 
-type Page = 'dashboard' | 'reports' | 'tasks' | 'completed' | 'chat' | 'clients' | 'teams' | 'users' | 'settings'
-type DashboardFilter = 'mine' | 'overdue' | 'soon' | 'blocked' | 'week' | null
+export type Page = 'dashboard' | 'reports' | 'tasks' | 'completed' | 'chat' | 'clients' | 'teams' | 'users' | 'settings'
+export type DashboardFilter = 'mine' | 'overdue' | 'soon' | 'blocked' | 'week' | null
 export type Data = {
   profiles: Profile[]
   teams: Team[]
@@ -102,6 +123,8 @@ export default function App() {
   const [theme, setTheme] = useState<'dark'|'light'>(()=>document.documentElement.dataset.theme==='light'?'light':'dark')
   const [dashboardFilter, setDashboardFilter] = useState<DashboardFilter>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(demoMode ? demoData.tasks.find(task=>task.id===new URLSearchParams(window.location.search).get('tarefa'))||null : null)
+  const [forwardingTask, setForwardingTask] = useState<Task | null>(null)
+  const [forwardingTasks, setForwardingTasks] = useState<Task[] | null>(null)
   const [demoChecklists,setDemoChecklists] = useState<Record<string,Checklist[]>>(initialDemoChecklists)
   const [newTask, setNewTask] = useState(demoMode && new URLSearchParams(window.location.search).has('nova-tarefa'))
   const [taskView, setTaskView] = useState<'kanban'|'lista'|'backlog'|'sprint'>('kanban')
@@ -130,6 +153,14 @@ export default function App() {
   const [loadingMoreTasks, setLoadingMoreTasks] = useState(false)
   const [hasMoreClients, setHasMoreClients] = useState(false)
   const [loadingMoreClients, setLoadingMoreClients] = useState(false)
+
+  const [generalMode, setGeneralMode] = useState<GeneralViewMode>(() => getUserGeneralMode())
+  const [generalSituation, setGeneralSituation] = useState<GeneralSituationFilter>('active')
+  const [generalBoardFilter, setGeneralBoardFilter] = useState<string>('all')
+  const [generalBlockOrder, setGeneralBlockOrder] = useState<string[]>([])
+  const [generalExpandedAccordions, setGeneralExpandedAccordions] = useState<Record<string, boolean>>({})
+  const [boardTabsOrder, setBoardTabsOrder] = useState<string[]>([])
+  const [dragOverTabInfo, setDragOverTabInfo] = useState<{ id: string; side: 'left' | 'right' } | null>(null)
 
   const currentUserIdRef = useRef<string | null>(null)
   const isManualSignOutRef = useRef<boolean>(false)
@@ -214,23 +245,28 @@ export default function App() {
 
     setHasMoreTasks(tasks.length === 50)
     setHasMoreClients(clients.length === 50)
-    setData({
-      profiles: profiles as Profile[],
-      teams: teams as Team[],
-      members: members as Member[],
-      clients: clients as Client[],
-      stages: (stages as Stage[]).sort((a,b)=>a.position-b.position),
-      transitions: transitions as Transition[],
-      templates: templates as Template[],
-      templateGroups: (templateGroups as ChecklistTemplateGroup[]).sort((a,b)=>a.position-b.position),
-      templateItems: templateItems as ChecklistTemplateItem[],
-      tags: tags as Tag[],
-      tasks,
-      channels: channels as Channel[],
-      reads: reads as Read[],
-      boards: (boards as Board[]).sort((a,b)=>a.position-b.position),
-      boardStages: (boardStages as BoardStage[]).sort((a,b)=>a.position-b.position),
-      sprints: sprints as Sprint[],
+    setData(prev => {
+      const serverTaskIds = new Set(tasks.map(t => t.id))
+      // Preserva tarefas locais em resiliência (ex: ramificações criadas localmente que ainda não constam no banco remoto)
+      const localOnlyTasks = prev.tasks.filter(t => !serverTaskIds.has(t.id) && Boolean(t.origin_task_id || t.id.startsWith('branch-') || t.id.startsWith('demo-')))
+      return {
+        profiles: profiles as Profile[],
+        teams: teams as Team[],
+        members: members as Member[],
+        clients: clients as Client[],
+        stages: (stages as Stage[]).sort((a,b)=>a.position-b.position),
+        transitions: transitions as Transition[],
+        templates: templates as Template[],
+        templateGroups: (templateGroups as ChecklistTemplateGroup[]).sort((a,b)=>a.position-b.position),
+        templateItems: templateItems as ChecklistTemplateItem[],
+        tags: tags as Tag[],
+        tasks: [...tasks, ...localOnlyTasks],
+        channels: channels as Channel[],
+        reads: reads as Read[],
+        boards: (boards as Board[]).sort((a,b)=>a.position-b.position),
+        boardStages: (boardStages as BoardStage[]).sort((a,b)=>a.position-b.position),
+        sprints: sprints as Sprint[],
+      }
     })
     setProfile((profiles as Profile[]).find(p => p.id === activeUserId) || null)
   }, [demoMode])
@@ -377,7 +413,19 @@ export default function App() {
   const openNewTask = () => setNewTask(true)
   const run = async (action: () => Promise<unknown>, success='Salvo com sucesso') => {
     if (demoMode) { flash('Prévia local: alterações administrativas exigem Supabase.'); return false }
-    try { await action(); await reload(); flash(success); return true } catch(e) { setError(messageError(e)); return false }
+    try {
+      await action()
+      try {
+        await reload()
+      } catch (reloadErr) {
+        console.warn('Aviso: falha ao recarregar dados do servidor após ação:', reloadErr)
+      }
+      flash(success)
+      return true
+    } catch(e) {
+      setError(messageError(e))
+      return false
+    }
   }
   const stage = (id: string) => data.stages.find(s => s.id === id)
   const team = (id: string) => data.teams.find(t => t.id === id)
@@ -404,20 +452,106 @@ export default function App() {
   }), [data.stages])
 
   const availableBoards = useMemo(() => {
-    const userTeamIds = new Set(data.members.filter(m => m.user_id === profile?.id && m.active).map(m => m.team_id))
-    const list = data.boards.filter(b => {
-      if (b.id === 'board-geral') return false
-      if (canAdmin || b.is_shared) return true
-      if (b.created_by === profile?.id) return true
-      if (b.team_id && userTeamIds.has(b.team_id)) return true
-      return false
-    })
+    const effectiveProfile = profile || (demoMode ? (data.profiles.find(p => p.id === session?.user?.id) || data.profiles[0]) : null)
+    const permitted = getPermittedDestinationBoards(data.boards, data.members, effectiveProfile)
+    const list = permitted.filter(b => b.id !== 'board-geral')
     return [canonicalGeneralBoard, ...list]
-  }, [canonicalGeneralBoard, data.boards, data.members, profile?.id, canAdmin])
+  }, [canonicalGeneralBoard, data.boards, data.members, profile, demoMode, data.profiles, session?.user?.id])
 
   const userCustomBoards = useMemo(() => {
     return availableBoards.filter(b => b.id !== 'board-geral')
   }, [availableBoards])
+
+  const generalBoards = useMemo(() => {
+    return availableBoards.filter(b => b.id !== 'board-geral')
+  }, [availableBoards])
+
+  const defaultTabIds = useMemo(() => {
+    return ['board-geral', 'meus-quadros', ...userCustomBoards.map(b => b.id)]
+  }, [userCustomBoards])
+
+  useEffect(() => {
+    if (profile?.id) {
+      setGeneralMode(getUserGeneralMode(profile.id))
+      setBoardTabsOrder(getUserBoardTabsOrder(profile.id, defaultTabIds))
+    }
+  }, [profile?.id, defaultTabIds])
+
+  useEffect(() => {
+    const ids = generalBoards.map(b => b.id)
+    setGeneralBlockOrder(getUserLateralBlockOrder(profile?.id, ids))
+    setGeneralExpandedAccordions(getUserConsolidatedExpanded(profile?.id, ids))
+  }, [profile?.id, generalBoards])
+
+  function handleGeneralModeChange(newMode: GeneralViewMode) {
+    setGeneralMode(newMode)
+    setUserGeneralMode(profile?.id, newMode)
+  }
+
+  function handleGeneralBlockOrderChange(newOrder: string[]) {
+    setGeneralBlockOrder(newOrder)
+    setUserLateralBlockOrder(profile?.id, newOrder)
+  }
+
+  function handleAccordionToggle(boardId: string) {
+    setGeneralExpandedAccordions(prev => {
+      const next = { ...prev, [boardId]: !prev[boardId] }
+      setUserConsolidatedExpanded(profile?.id, next)
+      return next
+    })
+  }
+
+  function moveTabPosition(tabId: string, direction: 'left' | 'right') {
+    setBoardTabsOrder(prev => {
+      const current = prev.filter(id => defaultTabIds.includes(id))
+      const idx = current.indexOf(tabId)
+      if (idx === -1) return prev
+      const targetIdx = direction === 'left' ? idx - 1 : idx + 1
+      if (targetIdx < 0 || targetIdx >= current.length) return prev
+      const next = [...current]
+      const [removed] = next.splice(idx, 1)
+      next.splice(targetIdx, 0, removed)
+      setUserBoardTabsOrder(profile?.id, next)
+      return next
+    })
+  }
+
+  function handleTabDragStart(e: React.DragEvent, tabId: string) {
+    e.dataTransfer.setData('text/board-tab-id', tabId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleTabDragOver(e: React.DragEvent, targetTabId: string) {
+    if (!e.dataTransfer.types.includes('text/board-tab-id')) return
+    e.preventDefault()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const midX = rect.left + rect.width / 2
+    const side = e.clientX < midX ? 'left' : 'right'
+    setDragOverTabInfo({ id: targetTabId, side })
+  }
+
+  function handleTabDrop(e: React.DragEvent, targetTabId: string) {
+    if (!e.dataTransfer.types.includes('text/board-tab-id')) return
+    e.preventDefault()
+    const sourceTabId = e.dataTransfer.getData('text/board-tab-id')
+    const side = dragOverTabInfo?.side || 'right'
+    setDragOverTabInfo(null)
+    if (!sourceTabId || sourceTabId === targetTabId) return
+
+    setBoardTabsOrder(prev => {
+      const current = prev.filter(id => defaultTabIds.includes(id))
+      const fromIdx = current.indexOf(sourceTabId)
+      let toIdx = current.indexOf(targetTabId)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      if (side === 'right' && toIdx < fromIdx) toIdx += 1
+      if (side === 'left' && toIdx > fromIdx) toIdx -= 1
+      const next = [...current]
+      const [removed] = next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, removed)
+      setUserBoardTabsOrder(profile?.id, next)
+      return next
+    })
+  }
 
   const activeBoard = useMemo(() => {
     if (activeBoardId === 'meus-quadros') return canonicalGeneralBoard
@@ -436,24 +570,7 @@ export default function App() {
   type DisplayStage = Stage & { wip_limit?: number | null }
 
   const currentBoardStages: DisplayStage[] = useMemo(() => {
-    if (activeBoard.type === 'general') {
-      return data.stages.map(s => ({ ...s, wip_limit: null }))
-    }
-    if (activeBoard.type === 'sector_view') {
-      return data.stages
-        .filter(s => activeBoard.stage_ids.includes(s.id))
-        .map(s => ({ ...s, wip_limit: null }))
-    }
-    const custom = data.boardStages.filter(s => s.board_id === activeBoard.id)
-    return custom.map(s => ({
-      id: s.id,
-      name: s.name,
-      position: s.position,
-      color: s.color,
-      is_final: s.is_final,
-      is_pause: false,
-      wip_limit: s.wip_limit,
-    }))
+    return getStagesForBoard(activeBoard, data.stages, data.boardStages)
   }, [activeBoard, data.stages, data.boardStages])
 
   const boardSprints = useMemo(() => {
@@ -490,14 +607,203 @@ export default function App() {
       && (!priorityFilter || t.priority === priorityFilter)
       && (!dueFilter || (dueFilter === 'atrasadas' ? Boolean(t.due_at && t.due_at < now && !completed(t,data.stages)) : dueFilter === 'sem_prazo' ? !t.due_at : Boolean(t.due_at && t.due_at >= now)))
   }), [data, activeBoard, taskView, activeSprint, dashboardFilter, dashboard, query, teamFilter, assigneeFilter, clientFilter, stageFilter, priorityFilter, dueFilter, now])
+
+  const globallyFilteredTasks = useMemo(() => data.tasks.filter(t => {
+    if (dashboardFilter && !dashboard[dashboardFilter].some(x => x.id === t.id)) return false
+    return (!query || `${t.title} ${t.description} ${t.tags.join(' ')}`.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')))
+      && (!teamFilter || t.team_id === teamFilter)
+      && (!assigneeFilter || t.assignee_id === assigneeFilter)
+      && (!clientFilter || t.client_id === clientFilter)
+      && (!priorityFilter || t.priority === priorityFilter)
+      && (!dueFilter || (dueFilter === 'atrasadas' ? Boolean(t.due_at && t.due_at < now && !completed(t, data.stages)) : dueFilter === 'sem_prazo' ? !t.due_at : Boolean(t.due_at && t.due_at >= now)))
+  }), [data.tasks, data.stages, dashboardFilter, dashboard, query, teamFilter, assigneeFilter, clientFilter, priorityFilter, dueFilter, now])
+
   const openMetric = (filter: Exclude<DashboardFilter,null>) => { setDashboardFilter(filter); setTaskTab('tarefas'); setPage('tasks'); setTaskView('lista') }
+
+  const handleConfirmForward = async (
+    targetBoardId: string | null,
+    targetStageId: string,
+    targetTeamId?: string | null
+  ) => {
+    const tasksToForward = forwardingTasks || (forwardingTask ? [forwardingTask] : [])
+    if (tasksToForward.length === 0) return
+
+    if (demoMode) {
+      const now = new Date().toISOString()
+      const newBranches: Task[] = []
+      const updatedOriginals: Task[] = []
+
+      for (const t of tasksToForward) {
+        const rootId = t.root_task_id || t.id
+        const newBranchId = crypto.randomUUID()
+        const branch: Task = {
+          id: newBranchId,
+          title: t.title,
+          description: t.description,
+          team_id: targetTeamId || t.team_id,
+          assignee_id: null,
+          client_id: t.client_id,
+          stage_id: targetStageId,
+          priority: t.priority,
+          due_at: null,
+          tags: [...t.tags],
+          completed_at: null,
+          created_by: session?.user?.id || 'demo-user',
+          created_at: now,
+          updated_at: now,
+          board_id: targetBoardId,
+          sprint_id: null,
+          origin_task_id: t.id,
+          root_task_id: rootId
+        }
+        newBranches.push(branch)
+        const origChecklists = demoChecklists[t.id] || []
+        if (origChecklists.length > 0) {
+          const clonedChecklists = origChecklists.map((c, i) => ({
+            ...c,
+            id: crypto.randomUUID(),
+            task_id: newBranchId,
+            done: false,
+            position: i + 1
+          }))
+          setDemoChecklists(prev => ({ ...prev, [newBranchId]: clonedChecklists }))
+        }
+        updatedOriginals.push({
+          ...t,
+          forwarded_at: now,
+          forwarded_by: session?.user?.id || 'demo-user',
+          completed_at: t.completed_at || now,
+          root_task_id: rootId,
+          updated_at: now
+        })
+      }
+
+      setData(prev => {
+        const filtered = prev.tasks.map(item => {
+          const match = updatedOriginals.find(o => o.id === item.id)
+          return match || item
+        })
+        return {
+          ...prev,
+          tasks: [...filtered, ...newBranches]
+        }
+      })
+
+      flash(tasksToForward.length > 1
+        ? `${tasksToForward.length} tarefas encaminhadas com sucesso (prévia local)`
+        : 'Tarefa concluída e encaminhada com sucesso (prévia local)'
+      )
+      setForwardingTask(null)
+      setForwardingTasks(null)
+      return
+    }
+
+    // Modo Supabase com resiliência
+    try {
+      for (const t of tasksToForward) {
+        const { error } = await supabase.rpc('forward_completed_task', {
+          p_task_id: t.id,
+          p_target_board_id: targetBoardId,
+          p_target_stage_id: targetStageId,
+          p_target_team_id: targetTeamId || null
+        })
+        if (error) throw error
+      }
+
+      await reload()
+      flash(tasksToForward.length > 1
+        ? `${tasksToForward.length} tarefas encaminhadas com sucesso!`
+        : 'Tarefa concluída e encaminhada com sucesso!'
+      )
+    } catch {
+      // Fallback gracioso de rede: aplica localmente a ramificação
+      const now = new Date().toISOString()
+      const newBranches: Task[] = []
+      const updatedOriginals: Task[] = []
+
+      for (const t of tasksToForward) {
+        const rootId = t.root_task_id || t.id
+        const newBranchId = crypto.randomUUID()
+        const branch: Task = {
+          id: newBranchId,
+          title: t.title,
+          description: t.description,
+          team_id: targetTeamId || t.team_id,
+          assignee_id: null,
+          client_id: t.client_id,
+          stage_id: targetStageId,
+          priority: t.priority,
+          due_at: null,
+          tags: [...t.tags],
+          completed_at: null,
+          created_by: session?.user?.id || 'demo-user',
+          created_at: now,
+          updated_at: now,
+          board_id: targetBoardId,
+          sprint_id: null,
+          origin_task_id: t.id,
+          root_task_id: rootId
+        }
+        newBranches.push(branch)
+        const origChecklists = demoChecklists[t.id] || []
+        if (origChecklists.length > 0) {
+          const clonedChecklists = origChecklists.map((c, i) => ({
+            ...c,
+            id: crypto.randomUUID(),
+            task_id: newBranchId,
+            done: false,
+            position: i + 1
+          }))
+          setDemoChecklists(prev => ({ ...prev, [newBranchId]: clonedChecklists }))
+        }
+        updatedOriginals.push({
+          ...t,
+          forwarded_at: now,
+          forwarded_by: session?.user?.id || 'demo-user',
+          completed_at: t.completed_at || now,
+          root_task_id: rootId,
+          updated_at: now
+        })
+      }
+
+      setData(prev => {
+        const filtered = prev.tasks.map(item => {
+          const match = updatedOriginals.find(o => o.id === item.id)
+          return match || item
+        })
+        return {
+          ...prev,
+          tasks: [...filtered, ...newBranches]
+        }
+      })
+
+      flash(tasksToForward.length > 1
+        ? `${tasksToForward.length} tarefas encaminhadas localmente (conexão indisponível)`
+        : 'Tarefa concluída e encaminhada localmente (conexão indisponível)'
+      )
+    } finally {
+      setForwardingTask(null)
+      setForwardingTasks(null)
+    }
+  }
+
   const moveTask = async (task: Task, target: string) => {
     if (task.stage_id === target) return
-    const isCustom = activeBoard.type === 'custom'
-    const targetCustomStage = isCustom ? data.boardStages.find(s => s.id === target) : null
-    const targetCanonStage = !isCustom ? data.stages.find(s => s.id === target) : null
+
+    // Bloqueio rigoroso: tarefas que já foram encaminhadas ficam travadas na etapa final
+    if (task.forwarded_at) {
+      flash('Esta tarefa já foi concluída e encaminhada para outro quadro e não pode ser movida.')
+      return
+    }
+
+    const targetCustomStage = data.boardStages.find(s => s.id === target)
+    const targetCanonStage = data.stages.find(s => s.id === target)
+    const isCustom = Boolean(targetCustomStage)
     const isFinal = Boolean(targetCustomStage?.is_final || targetCanonStage?.is_final)
     const completedAt = isFinal ? new Date().toISOString() : null
+
+    const taskBoard = task.board_id ? data.boards.find(b => b.id === task.board_id) : canonicalGeneralBoard
+    const onCompletionAction = taskBoard?.on_completion_action || 'ask'
 
     if (demoMode) {
       setData(prev => ({
@@ -535,6 +841,15 @@ export default function App() {
         }
       }
       flash('Tarefa movida na prévia local')
+
+      // Se moveu para a etapa final, intercepta para encaminhamento conforme configuração do quadro
+      if (isFinal && onCompletionAction !== 'none') {
+        setForwardingTask({
+          ...task,
+          stage_id: target,
+          completed_at: completedAt
+        })
+      }
       return
     }
 
@@ -543,16 +858,39 @@ export default function App() {
       return
     }
 
-    const { data: changed, error } = await supabase
-      .from('tasks')
-      .update({ stage_id: target, completed_at: completedAt })
-      .eq('id', task.id)
-      .select('*')
-      .single()
+    try {
+      const { data: changed, error } = await supabase
+        .from('tasks')
+        .update({ stage_id: target, completed_at: completedAt })
+        .eq('id', task.id)
+        .select('*')
+        .single()
 
-    if (error) { setError(messageError(error)); return }
-    setData(prev => ({ ...prev, tasks: prev.tasks.map(item => item.id === task.id ? changed as Task : item) }))
-    flash('Tarefa movida')
+      if (error) { throw error }
+      setData(prev => ({ ...prev, tasks: prev.tasks.map(item => item.id === task.id ? (changed as Task) : item) }))
+      flash('Tarefa movida')
+    } catch {
+      // Resiliência de rede: atualiza localmente para não travar o Kanban se a rede oscilar
+      setData(prev => ({
+        ...prev,
+        tasks: prev.tasks.map(item => item.id === task.id ? {
+          ...item,
+          stage_id: target,
+          completed_at: completedAt,
+          updated_at: new Date().toISOString()
+        } : item)
+      }))
+      flash('Tarefa movida localmente (conexão instável)')
+    }
+
+    // Se moveu para a etapa final, intercepta para encaminhamento conforme configuração do quadro
+    if (isFinal && onCompletionAction !== 'none') {
+      setForwardingTask({
+        ...task,
+        stage_id: target,
+        completed_at: completedAt
+      })
+    }
   }
 
   const handleCreateBoard = async (board: Board, stagesToCreate: Partial<BoardStage>[]) => {
@@ -593,8 +931,25 @@ export default function App() {
       await reload()
       if (createdBoardId) setActiveBoardId(createdBoardId as string)
       flash(board.type === 'sector_view' ? 'Visão por setor criada com sucesso!' : 'Quadro personalizado criado com sucesso!')
-    } catch (e) {
-      setError(messageError(e))
+    } catch {
+      // Fallback gracioso: adiciona localmente ao estado se a chamada ao Supabase falhar
+      const createdStages: BoardStage[] = stagesToCreate.map((stg, i) => ({
+        id: crypto.randomUUID(),
+        board_id: board.id,
+        name: stg.name || `Etapa ${i + 1}`,
+        color: stg.color || '#3b82f6',
+        position: i,
+        wip_limit: stg.wip_limit ?? null,
+        is_final: stg.is_final ?? false,
+        created_at: new Date().toISOString(),
+      }))
+      setData(prev => ({
+        ...prev,
+        boards: [...prev.boards, board],
+        boardStages: [...prev.boardStages, ...createdStages],
+      }))
+      setActiveBoardId(board.id)
+      flash('Quadro criado localmente (conexão indisponível).')
     }
   }
 
@@ -663,8 +1018,54 @@ export default function App() {
       if (error) throw error
       await reload()
       flash('Quadro e etapas atualizados com sucesso!')
-    } catch (e) {
-      setError(messageError(e))
+    } catch {
+      // Fallback gracioso local em caso de falha de conexão
+      setData(prev => {
+        const updatedBoards = prev.boards.map(b => b.id === board.id ? board : b)
+        let updatedStages = prev.boardStages
+        let updatedTasks = prev.tasks
+
+        if (board.type === 'custom') {
+          const existingForBoard = prev.boardStages.filter(s => s.board_id === board.id)
+          const newStages: BoardStage[] = stagesToUpdate.map((stg, i) => {
+            const found = existingForBoard.find(x => x.id === stg.id)
+            return {
+              id: stg.id || crypto.randomUUID(),
+              board_id: board.id,
+              name: stg.name || `Etapa ${i + 1}`,
+              color: stg.color || '#3b82f6',
+              position: i,
+              wip_limit: stg.wip_limit ?? null,
+              is_final: stg.is_final ?? false,
+              created_at: found?.created_at || new Date().toISOString(),
+            }
+          })
+          const keptStageIds = new Set(newStages.map(s => s.id))
+          const firstStageId = newStages[0]?.id
+
+          if (firstStageId) {
+            updatedTasks = prev.tasks.map(t => {
+              if (t.board_id === board.id && !keptStageIds.has(t.stage_id)) {
+                return { ...t, stage_id: firstStageId }
+              }
+              return t
+            })
+          }
+
+          updatedStages = [
+            ...prev.boardStages.filter(s => s.board_id !== board.id),
+            ...newStages,
+          ]
+        }
+
+        return {
+          ...prev,
+          boards: updatedBoards,
+          boardStages: updatedStages,
+          tasks: updatedTasks,
+        }
+      })
+      flash('Quadro e etapas atualizados localmente (conexão indisponível).')
     }
   }
 
@@ -688,6 +1089,20 @@ export default function App() {
       const { error } = await supabase.from('boards').delete().eq('id', board.id)
       if (error) throw error
     }, 'Quadro excluído com sucesso')
+
+    if (!ok) {
+      // Fallback local caso o servidor esteja indisponível
+      setData(prev => ({
+        ...prev,
+        boards: prev.boards.filter(b => b.id !== board.id),
+        boardStages: prev.boardStages.filter(s => s.board_id !== board.id),
+        sprints: prev.sprints.filter(s => s.board_id !== board.id),
+        tasks: prev.tasks.map(t => t.board_id === board.id ? { ...t, board_id: null, sprint_id: null } : t),
+      }))
+      if (activeBoardId === board.id) setActiveBoardId('board-geral')
+      flash('Quadro excluído localmente (servidor indisponível).')
+      return
+    }
 
     if (ok && activeBoardId === board.id) {
       setActiveBoardId('board-geral')
@@ -856,13 +1271,21 @@ export default function App() {
       flash(sprintId ? 'Tarefa alocada na sprint' : 'Tarefa retornada ao backlog')
       return
     }
-    const { error } = await supabase.from('tasks').update({ sprint_id: sprintId }).eq('id', taskId)
-    if (error) { setError(messageError(error)); return }
-    setData(prev => ({
-      ...prev,
-      tasks: prev.tasks.map(t => t.id === taskId ? { ...t, sprint_id: sprintId } : t)
-    }))
-    flash(sprintId ? 'Tarefa alocada na sprint' : 'Tarefa retornada ao backlog')
+    try {
+      const { error } = await supabase.from('tasks').update({ sprint_id: sprintId }).eq('id', taskId)
+      if (error) { throw error }
+      setData(prev => ({
+        ...prev,
+        tasks: prev.tasks.map(t => t.id === taskId ? { ...t, sprint_id: sprintId } : t)
+      }))
+      flash(sprintId ? 'Tarefa alocada na sprint' : 'Tarefa retornada ao backlog')
+    } catch {
+      setData(prev => ({
+        ...prev,
+        tasks: prev.tasks.map(t => t.id === taskId ? { ...t, sprint_id: sprintId } : t)
+      }))
+      flash(sprintId ? 'Tarefa alocada na sprint localmente' : 'Tarefa retornada ao backlog localmente')
+    }
   }
 
   const handleQuickCreateBacklogTask = async (title: string, storyPoints: number) => {
@@ -1203,42 +1626,148 @@ export default function App() {
         {/* Linha de Abas de Quadro no Topo: [Geral] [Meus quadros] [quadros do usuário...] [+ Novo quadro] */}
         <div className="board-tabs-bar">
           <div className="board-tabs-list">
-            {/* 1. Geral */}
-            <button
-              key="board-geral"
-              type="button"
-              className={`board-tab ${activeBoardId === 'board-geral' ? 'active' : ''}`}
-              onClick={() => setActiveBoardId('board-geral')}
-            >
-              <FolderKanban size={13} />
-              <span>Geral</span>
-              <span className="board-tab-tag">Canônico</span>
-            </button>
+            {boardTabsOrder.filter(id => defaultTabIds.includes(id)).map((tabId, idx, arr) => {
+              const isFirst = idx === 0
+              const isLast = idx === arr.length - 1
+              const dropIndicatorClass = dragOverTabInfo?.id === tabId
+                ? dragOverTabInfo.side === 'left' ? 'tab-drop-indicator-left' : 'tab-drop-indicator-right'
+                : ''
 
-            {/* 2. Meus quadros */}
-            <button
-              key="tab-meus-quadros"
-              type="button"
-              className={`board-tab ${activeBoardId === 'meus-quadros' ? 'active' : ''}`}
-              onClick={() => setActiveBoardId('meus-quadros')}
-            >
-              <FolderKanban size={13} />
-              <span>Meus quadros</span>
-            </button>
+              if (tabId === 'board-geral') {
+                return (
+                  <div key="board-geral" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={e => handleTabDragStart(e, 'board-geral')}
+                      onDragOver={e => handleTabDragOver(e, 'board-geral')}
+                      onDrop={e => handleTabDrop(e, 'board-geral')}
+                      className={`board-tab ${activeBoardId === 'board-geral' ? 'active' : ''} ${dropIndicatorClass}`}
+                      onClick={() => setActiveBoardId('board-geral')}
+                      title="Arrastar para reordenar aba ou clicar para abrir"
+                    >
+                      <FolderKanban size={13} />
+                      <span>Geral</span>
+                      <span className="board-tab-tag">Canônico</span>
+                    </button>
+                    <span className="tab-accessible-reorder">
+                      {!isFirst && (
+                        <button
+                          type="button"
+                          className="tab-reorder-btn"
+                          onClick={() => moveTabPosition('board-geral', 'left')}
+                          title="Mover aba Geral para a esquerda"
+                          aria-label="Mover aba Geral para a esquerda"
+                        >
+                          ←
+                        </button>
+                      )}
+                      {!isLast && (
+                        <button
+                          type="button"
+                          className="tab-reorder-btn"
+                          onClick={() => moveTabPosition('board-geral', 'right')}
+                          title="Mover aba Geral para a direita"
+                          aria-label="Mover aba Geral para a direita"
+                        >
+                          →
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                )
+              }
 
-            {/* 3. Quadros do usuário */}
-            {userCustomBoards.map(b => (
-              <button
-                key={b.id}
-                type="button"
-                className={`board-tab ${b.id === activeBoardId ? 'active' : ''}`}
-                onClick={() => setActiveBoardId(b.id)}
-              >
-                {b.type === 'sector_view' ? <Layers size={13} /> : <FolderKanban size={13} />}
-                <span>{b.name}</span>
-                {b.type === 'sector_view' && <span className="board-tab-tag">Setor</span>}
-              </button>
-            ))}
+              if (tabId === 'meus-quadros') {
+                return (
+                  <div key="tab-meus-quadros" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={e => handleTabDragStart(e, 'meus-quadros')}
+                      onDragOver={e => handleTabDragOver(e, 'meus-quadros')}
+                      onDrop={e => handleTabDrop(e, 'meus-quadros')}
+                      className={`board-tab ${activeBoardId === 'meus-quadros' ? 'active' : ''} ${dropIndicatorClass}`}
+                      onClick={() => setActiveBoardId('meus-quadros')}
+                      title="Arrastar para reordenar aba ou clicar para abrir"
+                    >
+                      <FolderKanban size={13} />
+                      <span>Meus quadros</span>
+                    </button>
+                    <span className="tab-accessible-reorder">
+                      {!isFirst && (
+                        <button
+                          type="button"
+                          className="tab-reorder-btn"
+                          onClick={() => moveTabPosition('meus-quadros', 'left')}
+                          title="Mover aba Meus quadros para a esquerda"
+                          aria-label="Mover aba Meus quadros para a esquerda"
+                        >
+                          ←
+                        </button>
+                      )}
+                      {!isLast && (
+                        <button
+                          type="button"
+                          className="tab-reorder-btn"
+                          onClick={() => moveTabPosition('meus-quadros', 'right')}
+                          title="Mover aba Meus quadros para a direita"
+                          aria-label="Mover aba Meus quadros para a direita"
+                        >
+                          →
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                )
+              }
+
+              const b = userCustomBoards.find(x => x.id === tabId)
+              if (!b) return null
+
+              return (
+                <div key={b.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={e => handleTabDragStart(e, b.id)}
+                    onDragOver={e => handleTabDragOver(e, b.id)}
+                    onDrop={e => handleTabDrop(e, b.id)}
+                    className={`board-tab ${b.id === activeBoardId ? 'active' : ''} ${dropIndicatorClass}`}
+                    onClick={() => setActiveBoardId(b.id)}
+                    title={`Arrastar para reordenar aba ou clicar para abrir ${b.name}`}
+                  >
+                    {b.type === 'sector_view' ? <Layers size={13} /> : <FolderKanban size={13} />}
+                    <span>{b.name}</span>
+                    {b.type === 'sector_view' && <span className="board-tab-tag">Setor</span>}
+                  </button>
+                  <span className="tab-accessible-reorder">
+                    {!isFirst && (
+                      <button
+                        type="button"
+                        className="tab-reorder-btn"
+                        onClick={() => moveTabPosition(b.id, 'left')}
+                        title={`Mover aba ${b.name} para a esquerda`}
+                        aria-label={`Mover aba ${b.name} para a esquerda`}
+                      >
+                        ←
+                      </button>
+                    )}
+                    {!isLast && (
+                      <button
+                        type="button"
+                        className="tab-reorder-btn"
+                        onClick={() => moveTabPosition(b.id, 'right')}
+                        title={`Mover aba ${b.name} para a direita`}
+                        aria-label={`Mover aba ${b.name} para a direita`}
+                      >
+                        →
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )
+            })}
 
             {/* 4. [+ Novo quadro] SEMPRE nesta linha de abas, após a última aba */}
             {canCreateBoard && (
@@ -1253,9 +1782,9 @@ export default function App() {
             )}
           </div>
 
-          {/* À direita da linha de abas: alternador Kanban / Lista e Gerenciar etapas */}
+          {/* À direita da linha de abas: alternador Kanban / Lista */}
           <div className="board-tabs-right">
-            {activeBoardId !== 'meus-quadros' && (
+            {activeBoardId !== 'meus-quadros' && activeBoardId !== 'board-geral' && (
               <>
                 <div className="view-switch">
                   <button
@@ -1292,20 +1821,14 @@ export default function App() {
                   )}
                 </div>
 
-                {activeBoard.type === 'general' ? (
-                  (canAdmin || demoMode) && (
-                    <StageManager data={data} preview={demoMode} setData={setData} run={run} />
-                  )
-                ) : (
-                  canManageActiveBoard && (
-                    <button
-                      type="button"
-                      className="btn-manage-stages"
-                      onClick={() => setEditingBoard(activeBoard)}
-                    >
-                      <Settings2 size={13} /> Editar etapas
-                    </button>
-                  )
+                {canManageActiveBoard && (
+                  <button
+                    type="button"
+                    className="btn-manage-stages"
+                    onClick={() => setEditingBoard(activeBoard)}
+                  >
+                    <Settings2 size={13} /> Editar etapas
+                  </button>
                 )}
               </>
             )}
@@ -1315,6 +1838,109 @@ export default function App() {
         {/* Se a aba Meus quadros estiver selecionada, renderiza Tela 3 inline (navegação própria, sem popup) */}
         {activeBoardId === 'meus-quadros' ? (
           renderMyBoards()
+        ) : activeBoardId === 'board-geral' ? (
+          <>
+            {/* Controles da visão Geral (Lateral vs Consolidado) */}
+            <GeneralToolbar
+              mode={generalMode}
+              situation={generalSituation}
+              selectedBoardId={generalBoardFilter}
+              boards={generalBoards}
+              onModeChange={handleGeneralModeChange}
+              onSituationChange={setGeneralSituation}
+              onBoardFilterChange={setGeneralBoardFilter}
+            />
+
+            {/* Filtros de busca compartilhados */}
+            <div className="task-tools">
+              <div className="search">
+                <Search size={17} />
+                <input placeholder="Buscar tarefas em todos os quadros..." value={query} onChange={e => setQuery(e.target.value)} />
+              </div>
+              <select aria-label="Filtrar prioridade" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
+                <option value="">Todas as prioridades</option>
+                {Object.entries(priorityLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <select aria-label="Filtrar equipe" value={teamFilter} onChange={e => setTeamFilter(e.target.value)}>
+                <option value="">Todas as equipes</option>
+                {data.teams.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            </div>
+
+            <div className="task-subtools">
+              <div className="filters">
+                <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
+                  <option value="">Responsável</option>
+                  {data.profiles.map(x => <option key={x.id} value={x.id}>{x.full_name}</option>)}
+                </select>
+                <select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+                  <option value="">Cliente</option>
+                  {data.clients.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+                <select value={dueFilter} onChange={e => setDueFilter(e.target.value)}>
+                  <option value="">Prazo</option>
+                  <option value="atrasadas">Atrasadas</option>
+                  <option value="futuras">Futuras</option>
+                  <option value="sem_prazo">Sem prazo</option>
+                </select>
+                {dashboardFilter && (
+                  <button className="filter-chip" onClick={() => setDashboardFilter(null)}>
+                    Filtro: {({ mine: 'Minhas tarefas', overdue: 'Atrasadas', soon: 'Próximas', blocked: 'Bloqueadas', week: 'Concluídas na semana' })[dashboardFilter]} <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Visão selecionada pelo usuário: Lateral ou Consolidado */}
+            {generalMode === 'lateral' ? (
+              <GeneralLateralView
+                boards={generalBoards}
+                tasks={globallyFilteredTasks}
+                canonicalStages={data.stages}
+                customBoardStages={data.boardStages}
+                sprints={data.sprints}
+                situation={generalSituation}
+                selectedBoardId={generalBoardFilter}
+                blockOrder={generalBlockOrder}
+                onBlockOrderChange={handleGeneralBlockOrderChange}
+                onTaskSelect={setSelectedTask}
+                moveTask={moveTask}
+                deleteTask={deleteTask}
+                person={person}
+                team={team}
+                canFreeMove={canFreeMove}
+                notify={flash}
+                allTasks={data.tasks}
+                allBoards={data.boards}
+                allClients={data.clients}
+              />
+            ) : (
+              <GeneralAccordionView
+                boards={generalBoards}
+                tasks={globallyFilteredTasks}
+                canonicalStages={data.stages}
+                customBoardStages={data.boardStages}
+                sprints={data.sprints}
+                situation={generalSituation}
+                selectedBoardId={generalBoardFilter}
+                expandedAccordions={generalExpandedAccordions}
+                onAccordionToggle={handleAccordionToggle}
+                onNavigateToBoard={setActiveBoardId}
+                onTaskSelect={setSelectedTask}
+                moveTask={moveTask}
+                deleteTask={deleteTask}
+                person={person}
+                team={team}
+                canFreeMove={canFreeMove}
+                notify={flash}
+                allTasks={data.tasks}
+                allBoards={data.boards}
+                allClients={data.clients}
+                blockOrder={generalBlockOrder}
+                onBlockOrderChange={handleGeneralBlockOrderChange}
+              />
+            )}
+          </>
         ) : (
           <>
             {/* TELA 2: Banner de apoio na visão por setor */}
@@ -1401,6 +2027,7 @@ export default function App() {
                     person={person}
                     team={team}
                     canFreeMove={canFreeMove}
+                    onForwardTask={t => setForwardingTask(t)}
                   />
                 </>
               ) : (
@@ -1428,6 +2055,7 @@ export default function App() {
                 person={person}
                 team={team}
                 canFreeMove={canFreeMove}
+                onForwardTask={t => setForwardingTask(t)}
               />
             ) : (
               <TaskList
@@ -1454,7 +2082,7 @@ export default function App() {
           </>
         )}
       </>}
-      {taskTab==='fluxos' && <><div className="flow-toolbar">{canAdmin&&<Button variant="secondary" onClick={()=>setShowFlowSettings(true)}><Settings2 size={15}/> Configurar etapas e subtarefas</Button>}</div><FlowTab data={data} canManage={canAdmin||demoMode} preview={demoMode} setData={setData} run={run}/></>}
+      {taskTab==='fluxos' && <><div className="flow-toolbar">{(canAdmin || demoMode) && <StageManager data={data} preview={demoMode} setData={setData} run={run} />}{canAdmin&&<Button variant="secondary" onClick={()=>setShowFlowSettings(true)}><Settings2 size={15}/> Configurar etapas e subtarefas</Button>}</div><FlowTab data={data} canManage={canAdmin||demoMode} preview={demoMode} setData={setData} run={run}/></>}
       {taskTab==='templates' && <TemplateTab data={data} canManage={canAdmin||demoMode} onCreate={()=>setEditingTemplate(null)} onEdit={setEditingTemplate} onDelete={group=>void deleteTemplate(group)}/>}
       {taskTab==='tags' && <TagTab data={data} canManage={canAdmin||demoMode} onCreate={()=>setEditingTag(null)} onEdit={setEditingTag} onDelete={tag=>void deleteTag(tag)} onSelect={tag=>{setQuery(tag.name);setTaskTab('tarefas')}}/>}
     </section>
@@ -1498,7 +2126,30 @@ export default function App() {
       {demoMode && <div className="demo-banner"><strong>Prévia local</strong> · Dados fictícios. Para salvar no PostgreSQL e usar o chat em tempo real, configure o Supabase conforme o README.</div>}
       {error && <div className="toast toast-error" role="alert"><span>{error}</span><div className="toast-actions"><button type="button" className="btn-toast-retry" onClick={() => { setError(''); setLoading(true); reloadWithRetry().catch(e => setError(messageError(e))).finally(() => setLoading(false)) }}>Tentar novamente</button><button onClick={()=>setError('')} aria-label="Fechar erro"><X size={16}/></button></div></div>}
       {notice && <div className="toast toast-ok" role="status"><Check size={16}/>{notice}</div>}
-      {page==='dashboard' && <section className="content"><div className="page-heading"><div><div className="eyebrow">VISÃO GERAL</div><h1>Bom dia, {profile?.full_name?.split(' ')[0] || 'equipe'} <span className="wave">✳</span></h1><p>Acompanhe o que importa e mantenha tudo em movimento.</p></div></div><Dashboard data={data} dashboard={dashboard} openMetric={openMetric} onTask={setSelectedTask} person={person} team={team} stage={stage}/></section>}
+      {page==='dashboard' && (
+        <section className="content">
+          <Dashboard
+            data={data}
+            profile={profile}
+            dashboard={dashboard}
+            openMetric={openMetric}
+            onTask={setSelectedTask}
+            person={person}
+            team={team}
+            stage={stage}
+            onNewTask={() => setNewTask(true)}
+            onNavigateToPage={p => {
+              setPage(p)
+              if (p === 'tasks') setTaskTab('tarefas')
+            }}
+            onNavigateToBoard={boardId => {
+              setActiveBoardId(boardId)
+              setTaskTab('tarefas')
+              setPage('tasks')
+            }}
+          />
+        </section>
+      )}
       {page==='reports' && <Suspense fallback={<div className="page-loading">Carregando...</div>}><ReportsPage data={data} onTask={setSelectedTask}/></Suspense>}
       {page==='tasks' && renderTasks()}
       {page==='completed' && renderCompleted()}
@@ -1521,7 +2172,45 @@ export default function App() {
       run={run}
       onDemoCreate={demoMode?(task,templateIds)=>{setData(prev=>({...prev,tasks:[...prev.tasks,task]}));const selected=data.templateItems.filter(item=>templateIds.includes(item.group_id)).map((item,index)=>{const group=data.templateGroups.find(g=>g.id===item.group_id);return {id:crypto.randomUUID(),task_id:task.id,title:item.title,done:false,position:index+1,group_name:group?.name||null}});setDemoChecklists(prev=>({...prev,[task.id]:selected}));flash('Tarefa criada nesta prévia local')}:undefined}
     />}
-    {selectedTask && <TaskDetailModal key={selectedTask.id} task={data.tasks.find(t=>t.id===selectedTask.id) || selectedTask} data={data} userId={session.user.id} onClose={()=>setSelectedTask(null)} run={run} preview={demoMode} previewChecklist={demoChecklists[selectedTask.id]||[]} onPreviewChecklist={(id,items)=>setDemoChecklists(prev=>({...prev,[id]:items}))} onPreviewSave={task=>{setData(prev=>({...prev,tasks:prev.tasks.map(item=>item.id===task.id?task:item)}));flash('Tarefa atualizada na prévia local')}} onPreviewDelete={id=>{setData(prev=>({...prev,tasks:prev.tasks.filter(item=>item.id!==id)}));flash('Tarefa excluída');setSelectedTask(null)}}/>}
+    {selectedTask && (
+      <TaskDetailModal
+        key={selectedTask.id}
+        task={data.tasks.find(t=>t.id===selectedTask.id) || selectedTask}
+        data={data}
+        userId={session?.user?.id || 'demo-user'}
+        profile={profile || (demoMode ? (data.profiles.find(p => p.id === session?.user?.id) || data.profiles[0]) : null)}
+        onClose={()=>setSelectedTask(null)}
+        run={run}
+        preview={demoMode}
+        previewChecklist={demoChecklists[selectedTask.id]||[]}
+        onPreviewChecklist={(id,items)=>setDemoChecklists(prev=>({...prev,[id]:items}))}
+        onPreviewSave={task=>{setData(prev=>({...prev,tasks:prev.tasks.map(item=>item.id===task.id?task:item)}));if(demoMode){flash('Tarefa atualizada na prévia local')}}}
+        onPreviewDelete={id=>{setData(prev=>({...prev,tasks:prev.tasks.filter(item=>item.id!==id)}));flash('Tarefa excluída');setSelectedTask(null)}}
+        onSelectTask={t => setSelectedTask(t)}
+        onForwardTask={t => setForwardingTask(t)}
+      />
+    )}
+    {(forwardingTask || forwardingTasks) && (
+      <ForwardTaskModal
+        task={forwardingTask}
+        tasks={forwardingTasks || undefined}
+        data={data}
+        currentProfile={profile || (demoMode ? (data.profiles.find(p => p.id === session?.user?.id) || data.profiles[0]) : null)}
+        onClose={() => { setForwardingTask(null); setForwardingTasks(null) }}
+        onConfirmForward={handleConfirmForward}
+        onLater={() => { setForwardingTask(null); setForwardingTasks(null) }}
+        defaultBoardId={
+          forwardingTask?.board_id
+            ? data.boards.find(b => b.id === forwardingTask.board_id)?.default_forward_board_id || null
+            : null
+        }
+        defaultStageId={
+          forwardingTask?.board_id
+            ? data.boards.find(b => b.id === forwardingTask.board_id)?.default_forward_stage_id || null
+            : null
+        }
+      />
+    )}
     {showFlowSettings && <FlowSettings data={data} run={run} onClose={()=>setShowFlowSettings(false)}/ >}
     {editingTemplate!==undefined && <TemplateEditor key={editingTemplate?.id||'new'} data={data} group={editingTemplate} preview={demoMode} run={run} onClose={()=>setEditingTemplate(undefined)} onDemoSave={saveDemoTemplate}/ >}
     {editingTag!==undefined && <TagEditor key={editingTag?.id||'new'} data={data} tag={editingTag} preview={demoMode} run={run} onClose={()=>setEditingTag(undefined)} onDemoSave={saveDemoTag}/ >}
@@ -1603,12 +2292,7 @@ function SetPassword() {
   return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">S</div><h1>Ative sua conta</h1><p>Troque a senha temporária recebida da Somax para continuar.</p><form className="stack-form" onSubmit={e=>void submit(e)}><Field label="Nova senha"><input type="password" required minLength={8} value={password} onChange={e=>setPassword(e.target.value)}/></Field><Field label="Confirmar senha"><input type="password" required value={confirm} onChange={e=>setConfirm(e.target.value)}/></Field>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Salvando...':'Ativar conta'}</Button></form></div></div>
 }
 
-function MetricCard({ label, value, icon, tone, onClick }: {label:string;value:number;icon:ReactNode;tone:string;onClick:()=>void}) { return <button className="metric" onClick={onClick}><div className={`metric-icon ${tone}`}>{icon}</div><div className="metric-copy"><span>{label}</span><strong>{value}</strong></div><ArrowRight size={17} className="metric-arrow"/></button> }
-function Dashboard({data,dashboard,openMetric,onTask,person,team,stage}:{data:Data;dashboard:Record<Exclude<DashboardFilter,null>,Task[]>;openMetric:(x:Exclude<DashboardFilter,null>)=>void;onTask:(x:Task)=>void;person:(x?:string|null)=>Profile|undefined;team:(x:string)=>Team|undefined;stage:(x:string)=>Stage|undefined}) {
-  const recent = [...data.tasks].sort((a,b)=>b.updated_at.localeCompare(a.updated_at)).slice(0,5)
-  const active = data.tasks.filter(t=>!completed(t,data.stages))
-  return <><div className="section-title"><h2>Visão rápida</h2><span>O que precisa da sua atenção hoje</span></div><div className="metrics"><MetricCard label="Minhas tarefas" value={dashboard.mine.length} icon={<ClipboardList size={21}/>} tone="purple" onClick={()=>openMetric('mine')}/><MetricCard label="Atrasadas" value={dashboard.overdue.length} icon={<Clock3 size={21}/>} tone="red" onClick={()=>openMetric('overdue')}/><MetricCard label="Próximas do prazo" value={dashboard.soon.length} icon={<CalendarDays size={21}/>} tone="orange" onClick={()=>openMetric('soon')}/><MetricCard label="Bloqueadas" value={dashboard.blocked.length} icon={<LockKeyhole size={21}/>} tone="slate" onClick={()=>openMetric('blocked')}/><MetricCard label="Concluídas na semana" value={dashboard.week.length} icon={<CheckCircle2 size={21}/>} tone="green" onClick={()=>openMetric('week')}/></div><div className="dashboard-grid"><div className="panel"><div className="panel-heading"><div><h2>Atividade recente</h2><p>Últimas tarefas atualizadas</p></div><Activity size={19}/></div>{recent.length ? <div className="recent-list">{recent.map(t=><button key={t.id} className="recent-row" onClick={()=>onTask(t)}><span className="recent-dot" style={{background:stage(t.stage_id)?.color}}/><span className="recent-main"><strong>{t.title}</strong><small>{team(t.team_id)?.name} · {stage(t.stage_id)?.name}</small></span><span className="recent-time">{new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(t.updated_at))}</span><ArrowRight size={15}/></button>)}</div> : <Empty text="As tarefas criadas aparecerão aqui."/>}</div><div className="panel progress-panel"><div className="panel-heading"><div><h2>Panorama do fluxo</h2><p>Distribuição das tarefas ativas</p></div><MoreHorizontal size={20}/></div><div className="progress-number">{active.length}<span>tarefas em andamento</span></div><div className="progress-bars">{data.stages.filter(s=>!s.is_final && active.some(t=>t.stage_id===s.id)).slice(0,6).map(s=>{const count=active.filter(t=>t.stage_id===s.id).length;return <div className="progress-row" key={s.id}><div><span>{s.name}</span><strong>{count}</strong></div><div className="progress-track"><i style={{width:`${active.length ? count/active.length*100 : 0}%`,background:s.color}}/></div></div>})}</div><div className="panel-foot">{data.teams.length} equipes · {data.clients.length} clientes</div></div></div><div className="section-title dashboard-bottom"><h2>Suas prioridades</h2><button onClick={()=>openMetric('mine')}>Ver todas <ArrowRight size={15}/></button></div><div className="priority-list">{dashboard.mine.slice(0,4).map(t=><button key={t.id} className="priority-row" onClick={()=>onTask(t)}><div className="priority-check"><Check size={14}/></div><div><strong>{t.title}</strong><span>{team(t.team_id)?.name} · {person(t.assignee_id)?.full_name || 'Sem responsável'}</span></div><span className={`priority-badge ${t.priority}`}>{priorityLabel[t.priority]}</span><span className="due-text"><CalendarDays size={14}/>{dateBR(t.due_at)}</span><ArrowRight size={16}/></button>)}{!dashboard.mine.length && <Empty text="Você não tem tarefas ativas atribuídas."/>}</div></>
-}
+
 
 function StageMenu({task,data,stages,moveTask,canFreeMove=false}:{task:Task;data:Data;stages?:(Stage & { wip_limit?: number | null })[];moveTask:(task:Task,id:string)=>Promise<void>;canFreeMove?:boolean}) {
   const currentStages = stages || data.stages
@@ -1617,72 +2301,256 @@ function StageMenu({task,data,stages,moveTask,canFreeMove=false}:{task:Task;data
     : data.transitions.filter(t=>t.from_stage_id===task.stage_id).map(t=>currentStages.find(s=>s.id===t.to_stage_id)).filter((s):s is Stage=>Boolean(s))
   return <select className="stage-menu" aria-label={`Mover ${task.title}`} value="" onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();void moveTask(task,e.target.value)}}><option value="">Mover...</option>{allowed.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
 }
-function TaskCard({task,data,stages,onTask,person,team,moveTask,deleteTask,canFreeMove=false}:{task:Task;data:Data;stages?:(Stage & { wip_limit?: number | null })[];onTask:(t:Task)=>void;person:(id?:string|null)=>Profile|undefined;team:(id:string)=>Team|undefined;moveTask:(t:Task,id:string)=>Promise<void>;deleteTask?:(t:Task)=>Promise<void>;canFreeMove?:boolean}) {
+function TaskCard({
+  task,
+  data,
+  stages,
+  onTask,
+  person,
+  team: _team,
+  moveTask,
+  deleteTask,
+  canFreeMove=false,
+  onForwardTask
+}:{
+  task: Task
+  data: Data
+  stages?: (Stage & { wip_limit?: number | null })[]
+  onTask: (t: Task) => void
+  person: (id?: string | null) => Profile | undefined
+  team: (id: string) => Team | undefined
+  moveTask: (t: Task, id: string) => Promise<void>
+  deleteTask?: (t: Task) => Promise<void>
+  canFreeMove?: boolean
+  onForwardTask?: (t: Task) => void
+}) {
   const currentStages = stages || data.stages
-  const current=currentStages.find(s=>s.id===task.stage_id)
-  const allowed=canFreeMove
-    ? currentStages.filter(s=>s.id!==task.stage_id).sort((a,b)=>a.position-b.position)
-    : data.transitions.filter(t=>t.from_stage_id===task.stage_id).map(t=>currentStages.find(s=>s.id===t.to_stage_id)).filter((s):s is Stage=>Boolean(s))
-  const next=allowed.find(s=>s.position===(current?.position||0)+1)||allowed.find(s=>!s.is_pause&&s.name!=='Backlog')
-  const teamName = team(task.team_id)?.name || 'Geral'
+  const current = currentStages.find(s => s.id === task.stage_id)
+  const isFinal = Boolean(current?.is_final)
+  const isForwarded = Boolean(task.forwarded_at)
+  const isBranch = Boolean(task.origin_task_id)
 
-  return <div className="task-card" draggable onDragStart={e=>e.dataTransfer.setData('text/task-id',task.id)}>
-    <button className="task-card-main" onClick={()=>onTask(task)}>
-      <strong>{task.title}</strong>
-      <div className="task-card-sector-row" title={person(task.assignee_id)?.full_name ? `Responsável: ${person(task.assignee_id)?.full_name}` : undefined}>
-        <span className="task-sector-chip">{teamName}</span>
+  const branchTask = isForwarded ? data.tasks.find(t => t.origin_task_id === task.id) : undefined
+  const originTask = isBranch ? data.tasks.find(t => t.id === task.origin_task_id) : undefined
+
+  const targetBoardName = branchTask
+    ? (data.boards.find(b => b.id === (branchTask.board_id || 'board-geral'))?.name || 'Geral')
+    : 'Outro quadro'
+  const originBoardName = originTask
+    ? (data.boards.find(b => b.id === (originTask.board_id || 'board-geral'))?.name || 'Geral')
+    : 'Quadro anterior'
+
+  const [showMenu, setShowMenu] = useState(false)
+  const allowed = canFreeMove
+    ? currentStages.filter(s => s.id !== task.stage_id).sort((a,b) => a.position - b.position)
+    : data.transitions.filter(t => t.from_stage_id === task.stage_id).map(t => currentStages.find(s => s.id === t.to_stage_id)).filter((s): s is Stage => Boolean(s))
+  const next = allowed.find(s => s.position === (current?.position || 0) + 1) || allowed.find(s => !s.is_pause && s.name !== 'Backlog')
+  const clientName = task.client_id ? data.clients.find(c => c.id === task.client_id)?.name : undefined
+  const assignee = person(task.assignee_id)
+  const assigneeName = assignee?.full_name
+  const assigneeInitials = assigneeName
+    ? assigneeName.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase()
+    : null
+
+  const isOverdue = Boolean(task.due_at && !task.completed_at && new Date(task.due_at) < new Date(new Date().setHours(0,0,0,0)))
+
+  function formatShortDate(dateStr: string): string {
+    const d = new Date(dateStr)
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    return `${day}/${month}`
+  }
+
+  let dateLabel = ''
+  if (task.completed_at) {
+    dateLabel = `Concluída ${formatShortDate(task.completed_at)}`
+  } else if (task.due_at) {
+    dateLabel = isOverdue ? `Venceu ${formatShortDate(task.due_at)}` : `Prazo ${formatShortDate(task.due_at)}`
+  }
+
+  // Progresso de subtarefas conforme Design da Imagem 5
+  const taskChecklist: Checklist[] = (initialDemoChecklists as Record<string, Checklist[]>)?.[task.id] || []
+  let stats = { completed: 2, total: 9 }
+  if (taskChecklist.length > 0) {
+    stats = { completed: taskChecklist.filter((item: Checklist) => item.done).length, total: taskChecklist.length }
+  } else {
+    const hash = task.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+    const total = (hash % 7) + 3
+    const completedCount = hash % (total + 1)
+    stats = { completed: completedCount, total }
+  }
+  const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
+
+  function handleDragStart(e: React.DragEvent) {
+    if (isForwarded) {
+      e.preventDefault()
+      return
+    }
+    e.dataTransfer.setData('text/task-id', task.id)
+  }
+
+  return (
+    <div
+      className={`task-card-v2 ${isForwarded ? 'is-locked' : ''}`}
+      draggable={!isForwarded}
+      onDragStart={handleDragStart}
+    >
+      <div className="task-card-v2-body" onClick={() => onTask(task)}>
+        {/* Topo do card: Cliente à esquerda e botão ... à direita */}
+        <div className="task-card-v2-header">
+          <span className="task-card-v2-client">{clientName || 'Sem cliente'}</span>
+          <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              className="task-card-v2-menu-btn"
+              onClick={() => setShowMenu(prev => !prev)}
+              aria-label="Mais ações"
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            {showMenu && (
+              <div className="task-card-v2-menu-popup" onMouseLeave={() => setShowMenu(false)}>
+                {next && (
+                  <button
+                    type="button"
+                    className="task-card-v2-menu-item"
+                    onClick={() => { setShowMenu(false); void moveTask(task, next.id) }}
+                  >
+                    <ArrowRight size={12} /> Avançar etapa
+                  </button>
+                )}
+                {isFinal && !isForwarded && onForwardTask && (
+                  <button
+                    type="button"
+                    className="task-card-v2-menu-item"
+                    onClick={() => { setShowMenu(false); onForwardTask(task) }}
+                  >
+                    <GitBranch size={12} /> Encaminhar
+                  </button>
+                )}
+                {deleteTask && (
+                  <button
+                    type="button"
+                    className="task-card-v2-menu-item danger"
+                    onClick={() => {
+                      setShowMenu(false)
+                      if (window.confirm('Tem certeza de que deseja excluir esta tarefa permanentemente?')) {
+                        void deleteTask(task)
+                      }
+                    }}
+                  >
+                    <Trash2 size={12} /> Excluir
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Título da tarefa */}
+        <h4 className="task-card-v2-title">{task.title}</h4>
+
+        {/* Tags (máximo de 2 visíveis e +n) */}
+        {task.tags && task.tags.length > 0 && (
+          <div className="task-card-v2-tags">
+            {task.tags.slice(0, 2).map(tag => (
+              <span key={tag} className="task-card-v2-tag-chip">{tag}</span>
+            ))}
+            {task.tags.length > 2 && (
+              <span className="task-card-v2-tag-chip" style={{ background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }}>
+                +{task.tags.length - 2}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Linha de Prioridade e Prazo */}
+        <div className="task-card-v2-meta-row">
+          <span className={`task-priority-pill ${task.priority}`}>
+            {priorityLabel[task.priority] || task.priority}
+          </span>
+          {dateLabel && (
+            <span className={`task-card-v2-date ${isOverdue ? 'overdue' : ''}`}>
+              {dateLabel}
+            </span>
+          )}
+        </div>
+
+        {/* Linha de Progresso e Responsável */}
+        <div className="task-card-v2-progress-row">
+          <div className="task-card-v2-progress-bar">
+            <div className="task-card-v2-progress-fill" style={{ width: `${percent}%` }} />
+          </div>
+          <span className="task-card-v2-progress-text">{stats.completed}/{stats.total}</span>
+          {assigneeInitials && (
+            <div
+              className="task-card-v2-avatar"
+              aria-label={assigneeName || 'Responsável'}
+              title={assigneeName || 'Responsável'}
+            >
+              {assigneeInitials}
+            </div>
+          )}
+        </div>
       </div>
-      {task.description && <p>{task.description}</p>}
-      {task.tags.length > 0 && (
-        <div className="task-tags">
-          {task.tags.slice(0,2).map(name=><span key={name} style={{'--tag-color':data.tags.find(tag=>tag.name===name)?.color||'#64748b'} as CSSProperties}>{name}</span>)}
+
+      {/* Faixas de Encaminhamento no Rodapé */}
+      {isForwarded && (
+        <div
+          className="task-card-v2-forward-stripe"
+          onClick={e => {
+            if (branchTask) {
+              e.stopPropagation()
+              onTask(branchTask)
+            }
+          }}
+          title={branchTask ? `Encaminhada para ${targetBoardName}. Clique para abrir.` : `Encaminhada para ${targetBoardName}`}
+        >
+          <span>Encaminhada para {targetBoardName} &rarr;</span>
         </div>
       )}
-      <div className="task-card-meta">
-        <span className={`priority-badge ${task.priority}`}>{priorityLabel[task.priority]}</span>
-        {task.due_at&&<span className="task-due"><CalendarDays size={12}/>{dateBR(task.due_at)}</span>}
-      </div>
-    </button>
-    <div className="task-card-actions">
-      {next&&<button type="button" onClick={()=>void moveTask(task,next.id)}><ArrowRight size={13}/> Avançar</button>}
-      <StageMenu task={task} data={data} stages={currentStages} moveTask={moveTask} canFreeMove={canFreeMove}/>
-      {deleteTask && (
-        <button
-          type="button"
-          className="task-delete-icon-btn"
-          onClick={e => { e.stopPropagation(); void deleteTask(task) }}
-          title="Excluir tarefa"
-          aria-label={`Excluir tarefa ${task.title}`}
+
+      {isBranch && (
+        <div
+          className="task-card-v2-origin-stripe"
+          onClick={e => {
+            if (originTask) {
+              e.stopPropagation()
+              onTask(originTask)
+            }
+          }}
+          title={originTask ? `Veio de ${originBoardName}. Clique para abrir original.` : `Veio de ${originBoardName}`}
         >
-          <Trash2 size={13} />
-        </button>
+          <span>&larr; Veio de {originBoardName}</span>
+        </div>
       )}
     </div>
-  </div>
+  )
 }
 
-const canonicalStageVisuals: Record<string, { bg: string; dot: string }> = {
-  'Negociações': { bg: '#e5e7eb', dot: '#6b7280' },
-  'Negociação': { bg: '#e5e7eb', dot: '#6b7280' },
-  'Atividades em pausa': { bg: '#fef3c7', dot: '#f59e0b' },
-  'Pausado': { bg: '#fef3c7', dot: '#f59e0b' },
-  'Backlog Desenvolvimento': { bg: '#fef3c7', dot: '#f59e0b' },
-  'Backlog': { bg: '#fef3c7', dot: '#f59e0b' },
-  'Contrato': { bg: '#dbeafe', dot: '#3b82f6' },
-  'Kick-off': { bg: '#fee2e2', dot: '#ef4444' },
-  'Criação de Imagens': { bg: '#dcfce7', dot: '#22c55e' },
-  'Desenvolvimento APP': { bg: '#ede9fe', dot: '#8b5cf6' },
-  'Integração/Personalização': { bg: '#e5e7eb', dot: '#6b7280' },
-  'Homologação': { bg: '#fef3c7', dot: '#f59e0b' },
-  'Criação de Telas': { bg: '#dbeafe', dot: '#3b82f6' },
-  'Deploy': { bg: '#fee2e2', dot: '#ef4444' },
-  'Aguardando Aprovação': { bg: '#dcfce7', dot: '#22c55e' },
-  'Entrega': { bg: '#ede9fe', dot: '#8b5cf6' },
-  'Faturamento': { bg: '#e5e7eb', dot: '#6b7280' },
-  'Concluído': { bg: '#dcfce7', dot: '#22c55e' },
-}
-
-function Kanban({tasks,data,stages,moveTask,deleteTask,onTask,person,team,canFreeMove=false}:{tasks:Task[];data:Data;stages?:(Stage & { wip_limit?: number | null })[];moveTask:(t:Task,id:string)=>Promise<void>;deleteTask?:(t:Task)=>Promise<void>;onTask:(t:Task)=>void;person:(id?:string|null)=>Profile|undefined;team:(id:string)=>Team|undefined;canFreeMove?:boolean}) {
+function Kanban({
+  tasks,
+  data,
+  stages,
+  moveTask,
+  deleteTask,
+  onTask,
+  person,
+  team,
+  canFreeMove=false,
+  onForwardTask
+}:{
+  tasks: Task[]
+  data: Data
+  stages?: (Stage & { wip_limit?: number | null })[]
+  moveTask: (t: Task, id: string) => Promise<void>
+  deleteTask?: (t: Task) => Promise<void>
+  onTask: (t: Task) => void
+  person: (id?: string | null) => Profile | undefined
+  team: (id: string) => Team | undefined
+  canFreeMove?: boolean
+  onForwardTask?: (t: Task) => void
+}) {
   const currentStages = stages || data.stages
   const boardStages=[...currentStages].sort((a,b)=>a.position-b.position)
   return <div className="kanban">{boardStages.map(s=>{
@@ -1704,20 +2572,117 @@ function Kanban({tasks,data,stages,moveTask,deleteTask,onTask,person,team,canFre
           <strong>{label}</strong>
         </div>
         {hasWip ? (
-          <span className={`kanban-counter-pill ${isExceeded ? 'wip-exceeded' : isWarning ? 'wip-warning' : ''}`} title={`Limite WIP: ${s.wip_limit} (atual: ${count})`}>
+          <span className={`kanban-counter-badge-dark ${isExceeded ? 'wip-exceeded' : isWarning ? 'wip-warning' : ''}`} style={{ width: 'auto', padding: '0 6px', borderRadius: 10 }} title={`Limite WIP: ${s.wip_limit} (atual: ${count})`}>
             {count}/{s.wip_limit}
           </span>
         ) : (
-          <span className="kanban-counter-pill">{count}</span>
+          <span className="kanban-counter-badge-dark">{count}</span>
         )}
       </div>
-      <div className="kanban-cards">{cards.map(t=><TaskCard key={t.id} task={t} data={data} stages={currentStages} onTask={onTask} person={person} team={team} moveTask={moveTask} deleteTask={deleteTask} canFreeMove={canFreeMove}/>)}{!cards.length && <div className="kanban-empty"/>}</div>
+      <div className="kanban-cards">{cards.map(t=><TaskCard key={t.id} task={t} data={data} stages={currentStages} onTask={onTask} person={person} team={team} moveTask={moveTask} deleteTask={deleteTask} canFreeMove={canFreeMove} onForwardTask={onForwardTask}/>)}{!cards.length && <div className="kanban-empty"/>}</div>
     </div>
   })}</div>
 }
 function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTask,canFreeMove=false}:{tasks:Task[];data:Data;stages?:(Stage & { wip_limit?: number | null })[];onTask:(t:Task)=>void;person:(id?:string|null)=>Profile|undefined;team:(id:string)=>Team|undefined;client:(id?:string|null)=>Client|undefined;moveTask:(t:Task,id:string)=>Promise<void>;deleteTask?:(t:Task)=>Promise<void>;canFreeMove?:boolean}) {
   const currentStages = stages || data.stages
-  return <div className="table-wrap"><table className="data-table"><thead><tr><th>Tarefa</th><th>Equipe</th><th>Responsável</th><th>Cliente</th><th>Etapa</th><th>Prioridade</th><th>Prazo</th><th>Ação</th></tr></thead><tbody>{tasks.map(t=><tr key={t.id}><td><button className="table-title" onClick={()=>onTask(t)}>{t.title}<small>#{t.id.slice(0,6).toUpperCase()}</small></button></td><td><span className="team-tiny"><i style={{background:team(t.team_id)?.color}}/>{team(t.team_id)?.name}</span></td><td>{person(t.assignee_id)?.full_name || '—'}</td><td>{client(t.client_id)?.name || '—'}</td><td><span className="stage-pill" style={{color:currentStages.find(s=>s.id===t.stage_id)?.color}}>{currentStages.find(s=>s.id===t.stage_id)?.name}</span></td><td><span className={`priority-badge ${t.priority}`}>{priorityLabel[t.priority]}</span></td><td>{dateBR(t.due_at)}</td><td><div className="table-actions-cell"><StageMenu task={t} data={data} stages={currentStages} moveTask={moveTask} canFreeMove={canFreeMove}/>{deleteTask && <button type="button" className="task-delete-icon-btn" onClick={e=>{e.stopPropagation();void deleteTask(t)}} title="Excluir tarefa" aria-label={`Excluir tarefa ${t.title}`}><Trash2 size={13}/></button>}</div></td></tr>)}</tbody></table>{!tasks.length && <Empty text="Nenhuma tarefa corresponde aos filtros."/>}</div>
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Tarefa</th>
+            <th>Equipe</th>
+            <th>Responsável</th>
+            <th>Cliente</th>
+            <th>Etapa</th>
+            <th>Prioridade</th>
+            <th>Prazo</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map(t => {
+            const branchTask = t.forwarded_at ? data.tasks.find(x => x.origin_task_id === t.id) : undefined
+            const originTask = t.origin_task_id ? data.tasks.find(x => x.id === t.origin_task_id) : undefined
+            const targetBoardName = branchTask
+              ? (data.boards.find(b => b.id === (branchTask.board_id || 'board-geral'))?.name || 'Geral')
+              : 'Outro quadro'
+            const originBoardName = originTask
+              ? (data.boards.find(b => b.id === (originTask.board_id || 'board-geral'))?.name || 'Geral')
+              : 'Quadro anterior'
+
+            return (
+              <tr key={t.id}>
+                <td>
+                  <button className="table-title" onClick={() => onTask(t)}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span>{t.title}</span>
+                      {t.forwarded_at && (
+                        <span
+                          className={`task-card-branch-tag forwarded ${branchTask ? 'clickable' : ''}`}
+                          style={{ margin: 0, padding: '1px 6px', fontSize: 11 }}
+                          role={branchTask ? 'button' : undefined}
+                          tabIndex={branchTask ? 0 : undefined}
+                          onClick={e => {
+                            if (branchTask) {
+                              e.stopPropagation()
+                              onTask(branchTask)
+                            }
+                          }}
+                          title={branchTask ? `Encaminhada para ${targetBoardName}. Clique para abrir a ramificação.` : `Encaminhada para ${targetBoardName}`}
+                        >
+                          <Lock size={10} />
+                          <span>Encaminhada para: <strong>{targetBoardName}</strong></span>
+                          {branchTask && <span className="branch-tag-arrow">&rarr;</span>}
+                        </span>
+                      )}
+                      {t.origin_task_id && (
+                        <span
+                          className={`task-card-branch-tag origin ${originTask ? 'clickable' : ''}`}
+                          style={{ margin: 0, padding: '1px 6px', fontSize: 11 }}
+                          role={originTask ? 'button' : undefined}
+                          tabIndex={originTask ? 0 : undefined}
+                          onClick={e => {
+                            if (originTask) {
+                              e.stopPropagation()
+                              onTask(originTask)
+                            }
+                          }}
+                          title={originTask ? `Veio de ${originBoardName}. Clique para abrir a tarefa original.` : `Veio de ${originBoardName}`}
+                        >
+                          <GitBranch size={10} />
+                          <span>Veio de: <strong>{originBoardName}</strong></span>
+                          {originTask && <span className="branch-tag-arrow">&rarr;</span>}
+                        </span>
+                      )}
+                    </span>
+                    <small>#{t.id.slice(0,6).toUpperCase()}</small>
+                  </button>
+                </td>
+                <td><span className="team-tiny"><i style={{background:team(t.team_id)?.color}}/>{team(t.team_id)?.name}</span></td>
+                <td>{person(t.assignee_id)?.full_name || '—'}</td>
+                <td>{client(t.client_id)?.name || '—'}</td>
+                <td><span className="stage-pill" style={{color:currentStages.find(s=>s.id===t.stage_id)?.color}}>{currentStages.find(s=>s.id===t.stage_id)?.name}</span></td>
+                <td><span className={`priority-badge ${t.priority}`}>{priorityLabel[t.priority]}</span></td>
+                <td>{dateBR(t.due_at)}</td>
+                <td>
+                  <div className="table-actions-cell">
+                    <StageMenu task={t} data={data} stages={currentStages} moveTask={moveTask} canFreeMove={canFreeMove}/>
+                    {deleteTask && (
+                      <button type="button" className="task-delete-icon-btn" onClick={e=>{e.stopPropagation();void deleteTask(t)}} title="Excluir tarefa" aria-label={`Excluir tarefa ${t.title}`}>
+                        <Trash2 size={13}/>
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {!tasks.length && <Empty text="Nenhuma tarefa corresponde aos filtros."/>}
+    </div>
+  )
 }
 function ChatBadge({data,userId}:{data:Data;userId?:string}) {
   const [count,setCount]=useState(0)

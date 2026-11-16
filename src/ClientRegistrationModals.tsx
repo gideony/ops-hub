@@ -1,8 +1,24 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { FormEvent } from 'react'
-import { Check, Copy, X } from 'lucide-react'
+import {
+  Building2,
+  Check,
+  CheckCircle2,
+  Copy,
+  CreditCard,
+  ExternalLink,
+  FileText,
+  Link2,
+  Plus,
+  Search,
+  ShieldAlert,
+  Trash2,
+  User,
+  X,
+  XCircle,
+} from 'lucide-react'
 import { maskPhone, supabase } from './lib'
-import type { ClientRegistrationData, ClientRegistrationLink, ClientRegistrationSubmission, Team } from './lib'
+import type { ClientLink, ClientRegistrationData, ClientRegistrationLink, ClientRegistrationSubmission, Team } from './lib'
 
 type Run = (action: () => Promise<unknown>, success?: string) => Promise<boolean>
 
@@ -293,6 +309,17 @@ interface PendingRegistrationsModalProps {
   notify: (msg: string) => void
 }
 
+function initials(name: string): string {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map(part => part[0]?.toUpperCase())
+      .join('') || '?'
+  )
+}
+
 export function PendingRegistrationsModal({
   isOpen,
   onClose,
@@ -303,7 +330,8 @@ export function PendingRegistrationsModal({
   onReject,
   notify,
 }: PendingRegistrationsModalProps) {
-  const [selectedSub, setSelectedSub] = useState<ClientRegistrationSubmission | null>(null)
+  const [filter, setFilter] = useState<'todos' | 'financeiro' | 'documento'>('todos')
+  const [expandedSubId, setExpandedSubId] = useState<string | null>(null)
   const [rejectingSub, setRejectingSub] = useState<ClientRegistrationSubmission | null>(null)
   const [rejectNotes, setRejectNotes] = useState<string>('')
   const [busy, setBusy] = useState<boolean>(false)
@@ -318,93 +346,328 @@ export function PendingRegistrationsModal({
     return teams.find(t => t.id === link.team_id)?.name || 'Equipe'
   }
 
+  const withFinancialCount = pendingList.filter(
+    s =>
+      Boolean(
+        s.data.financial_contact_name ||
+          s.data.financial_email ||
+          s.data.financial_whatsapp ||
+          s.data.financial_due_date ||
+          s.data.financial_notes
+      )
+  ).length
+
+  const withDocCount = pendingList.filter(s => Boolean(s.data.cnpj_cpf)).length
+
+  const filteredSubs = pendingList.filter(sub => {
+    if (filter === 'financeiro') {
+      const d = sub.data
+      return Boolean(
+        d.financial_contact_name ||
+          d.financial_email ||
+          d.financial_whatsapp ||
+          d.financial_due_date ||
+          d.financial_notes
+      )
+    }
+    if (filter === 'documento') {
+      return Boolean(sub.data.cnpj_cpf)
+    }
+    return true
+  })
+
+  async function handleDirectApprove(sub: ClientRegistrationSubmission) {
+    setBusy(true)
+    try {
+      await onApprove(sub.id, sub.data)
+      notify('Cliente aprovado e cadastrado com sucesso!')
+      if (expandedSubId === sub.id) setExpandedSubId(null)
+    } catch {
+      notify('Erro ao aprovar cadastro.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleConfirmReject(e: FormEvent) {
     e.preventDefault()
     if (!rejectingSub) return
     setBusy(true)
     try {
       await onReject(rejectingSub.id, rejectNotes.trim() || undefined)
-      notify('Submissão rejeitada com sucesso.')
+      notify('Submissão recusada com sucesso.')
+      if (expandedSubId === rejectingSub.id) setExpandedSubId(null)
       setRejectingSub(null)
       setRejectNotes('')
     } catch {
-      notify('Erro ao rejeitar submissão.')
+      notify('Erro ao recusar submissão.')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal modal-wide" role="dialog" aria-modal="true" aria-label="Cadastros Pendentes">
+    <div
+      className="modal-backdrop"
+      onMouseDown={e => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        className="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cadastros Pendentes"
+      >
         <div className="modal-heading">
-          <h2>Cadastros Pendentes de Validação ({pendingList.length})</h2>
+          <div>
+            <h2>Cadastros pendentes ({pendingList.length})</h2>
+            <p
+              style={{
+                margin: '0.25rem 0 0',
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              Novos clientes enviados pelo link público, aguardando validação.
+            </p>
+          </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">
             <X size={19} />
           </button>
         </div>
 
+        {/* Faixa curta e informativa */}
+        <div className="pending-notice-banner">
+          <ShieldAlert size={16} className="pending-notice-icon" />
+          <span>
+            Aprovação humana obrigatória: os dados abaixo vieram de links externos e só viram
+            clientes oficiais após sua validação.
+          </span>
+        </div>
+
+        {/* Filtros em abas */}
+        {pendingList.length > 0 && (
+          <div
+            className="client-profile-tablist"
+            role="tablist"
+            style={{ padding: 0, marginBottom: '16px' }}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filter === 'todos'}
+              className={`client-profile-tab-btn ${filter === 'todos' ? 'active' : ''}`}
+              onClick={() => setFilter('todos')}
+            >
+              Todos ({pendingList.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filter === 'financeiro'}
+              className={`client-profile-tab-btn ${filter === 'financeiro' ? 'active' : ''}`}
+              onClick={() => setFilter('financeiro')}
+            >
+              Com dados financeiros ({withFinancialCount})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filter === 'documento'}
+              className={`client-profile-tab-btn ${filter === 'documento' ? 'active' : ''}`}
+              onClick={() => setFilter('documento')}
+            >
+              Com CNPJ/CPF ({withDocCount})
+            </button>
+          </div>
+        )}
+
         {pendingList.length === 0 ? (
-          <div className="empty">
-            <p>Não há cadastros pendentes de validação no momento.</p>
+          <div className="pending-empty-clean">
+            <CheckCircle2 size={36} style={{ opacity: 0.4, color: 'var(--text-secondary)' }} />
+            <h3>Nenhum cadastro pendente</h3>
+            <p>Todos os cadastros enviados pelo link público já foram validados.</p>
+          </div>
+        ) : filteredSubs.length === 0 ? (
+          <div className="pending-empty-clean">
+            <CheckCircle2 size={32} style={{ opacity: 0.4, color: 'var(--text-secondary)' }} />
+            <h3>Nenhum cadastro neste filtro</h3>
+            <p>Não há envios pendentes com as características selecionadas.</p>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="pending-subs-table">
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Contato</th>
-                  <th>E-mail</th>
-                  <th>Telefone</th>
-                  <th>Equipe</th>
-                  <th>Data Envio</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingList.map(sub => {
-                  const d = sub.data
-                  return (
-                    <tr key={sub.id}>
-                      <td>
-                        <strong>{d.name}</strong>
-                        {d.legal_name && <small style={{ display: 'block', color: 'var(--text-secondary)' }}>{d.legal_name}</small>}
-                      </td>
-                      <td>{d.contact_name || '—'}</td>
-                      <td>{d.contact_email || '—'}</td>
-                      <td>{d.contact_phone || '—'}</td>
-                      <td>
-                        <span className="reg-info-pill">{getTeamName(sub.link_id)}</span>
-                      </td>
-                      <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {new Date(sub.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
-                            onClick={() => setSelectedSub(sub)}
-                          >
-                            Revisar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
-                            onClick={() => { setRejectingSub(sub); setRejectNotes('') }}
-                          >
-                            Recusar
-                          </button>
+          <div className="pending-subs-clean-list">
+            {filteredSubs.map(sub => {
+              const d = sub.data
+              const hasFinancial = Boolean(
+                d.financial_contact_name ||
+                  d.financial_email ||
+                  d.financial_whatsapp ||
+                  d.financial_due_date ||
+                  d.financial_notes
+              )
+              const isExpanded = expandedSubId === sub.id
+
+              return (
+                <div key={sub.id} className="pending-sub-clean-card">
+                  <div className="pending-sub-clean-header">
+                    <div className="pending-sub-avatar" aria-hidden="true">
+                      {initials(d.name)}
+                    </div>
+                    <div className="pending-sub-clean-meta">
+                      <div className="pending-sub-name-row">
+                        <strong className="pending-sub-clean-name">{d.name}</strong>
+                        <div className="pending-sub-pills">
+                          {hasFinancial && (
+                            <span className="profile-badge-demands">Financeiro</span>
+                          )}
+                          {d.cnpj_cpf && <span className="profile-badge-outline">CNPJ</span>}
                         </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </div>
+                      <span className="pending-sub-clean-info">
+                        Enviado pelo link de {getTeamName(sub.link_id)} em{' '}
+                        {new Date(sub.created_at).toLocaleDateString('pt-BR')} às{' '}
+                        {new Date(sub.created_at).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setExpandedSubId(isExpanded ? null : sub.id)}
+                    >
+                      {isExpanded ? 'Recolher' : 'Revisar'}
+                    </button>
+                  </div>
+
+                  {/* Expansão com detalhes e ações */}
+                  {isExpanded && (
+                    <div className="pending-sub-expansion">
+                      <div className="pending-expansion-grid">
+                        <div className="pending-expansion-col">
+                          <div className="profile-field-block">
+                            <span className="profile-field-label">Razão social</span>
+                            <span className="profile-field-val">
+                              {d.legal_name || 'Não informada'}
+                            </span>
+                          </div>
+                          <div className="profile-field-block">
+                            <span className="profile-field-label">CNPJ / CPF</span>
+                            <span className="profile-field-val">
+                              {d.cnpj_cpf || 'Não informado'}
+                            </span>
+                          </div>
+                          <div className="profile-field-block">
+                            <span className="profile-field-label">Contato / Responsável</span>
+                            <span className="profile-field-val">
+                              {d.contact_name || 'Não informado'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pending-expansion-col">
+                          <div className="profile-field-block">
+                            <span className="profile-field-label">E-mail</span>
+                            <span className="profile-field-val">
+                              {d.contact_email || 'Não informado'}
+                            </span>
+                          </div>
+                          <div className="profile-field-block">
+                            <span className="profile-field-label">Telefone / WhatsApp</span>
+                            <span className="profile-field-val">
+                              {d.contact_phone ? maskPhone(d.contact_phone) : 'Não informado'}
+                            </span>
+                          </div>
+                          <div className="profile-field-block">
+                            <span className="profile-field-label">Vencimento</span>
+                            <span className="profile-field-val">
+                              {d.financial_due_date || 'Não informado'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {hasFinancial && (
+                        <div className="pending-expansion-fin-box">
+                          <span
+                            className="profile-field-label"
+                            style={{ display: 'block', marginBottom: '8px' }}
+                          >
+                            Dados financeiros complementares
+                          </span>
+                          <div className="pending-expansion-grid">
+                            {d.financial_contact_name && (
+                              <div className="profile-field-block">
+                                <span className="profile-field-label">
+                                  Responsável financeiro
+                                </span>
+                                <span className="profile-field-val">
+                                  {d.financial_contact_name}
+                                </span>
+                              </div>
+                            )}
+                            {d.financial_email && (
+                              <div className="profile-field-block">
+                                <span className="profile-field-label">E-mail financeiro</span>
+                                <span className="profile-field-val">
+                                  {d.financial_email}
+                                </span>
+                              </div>
+                            )}
+                            {d.financial_whatsapp && (
+                              <div className="profile-field-block">
+                                <span className="profile-field-label">WhatsApp financeiro</span>
+                                <span className="profile-field-val">
+                                  {maskPhone(d.financial_whatsapp)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {d.financial_notes && (
+                            <div className="profile-field-block" style={{ marginTop: '8px' }}>
+                              <span className="profile-field-label">
+                                Instruções de faturamento
+                              </span>
+                              <span
+                                className="profile-field-val"
+                                style={{ fontSize: '13px', whiteSpace: 'pre-wrap' }}
+                              >
+                                {d.financial_notes}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="pending-expansion-actions">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ color: 'var(--chip-danger-text)' }}
+                          onClick={() => {
+                            setRejectingSub(sub)
+                            setRejectNotes('')
+                          }}
+                          disabled={busy}
+                        >
+                          <XCircle size={14} /> Rejeitar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => void handleDirectApprove(sub)}
+                          disabled={busy}
+                        >
+                          <CheckCircle2 size={14} /> Aprovar e criar cliente
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
@@ -414,51 +677,56 @@ export function PendingRegistrationsModal({
           </button>
         </div>
 
-        {/* Modal de Revisão do Cadastro */}
-        {selectedSub && (
-          <ReviewRegistrationModal
-            submission={selectedSub}
-            onClose={() => setSelectedSub(null)}
-            onApprove={async (subId, approvedData, notes) => {
-              await onApprove(subId, approvedData, notes)
-              setSelectedSub(null)
-            }}
-            onReject={() => {
-              setSelectedSub(null)
-              setRejectingSub(selectedSub)
-            }}
-          />
-        )}
-
         {/* Modal de Confirmação de Rejeição */}
         {rejectingSub && (
-          <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setRejectingSub(null) }}>
-            <div className="modal" role="dialog" aria-modal="true" aria-label="Rejeitar Submissão">
+          <div
+            className="modal-backdrop"
+            onMouseDown={e => {
+              if (e.target === e.currentTarget) setRejectingSub(null)
+            }}
+          >
+            <div
+              className="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Recusar Submissão"
+            >
               <div className="modal-heading">
-                <h2>Rejeitar Cadastro: {rejectingSub.data.name}</h2>
-                <button type="button" className="icon-btn" onClick={() => setRejectingSub(null)} aria-label="Fechar">
+                <h2>Recusar Cadastro: {rejectingSub.data.name}</h2>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setRejectingSub(null)}
+                  aria-label="Fechar"
+                >
                   <X size={19} />
                 </button>
               </div>
               <form className="stack-form" onSubmit={handleConfirmReject}>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  A submissão será descartada e não virará cliente oficial. Você pode registrar uma justificativa interna abaixo:
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  A submissão será descartada e não virará cliente oficial no sistema. Você pode
+                  registrar uma justificativa interna abaixo:
                 </p>
                 <label className="field">
                   <span>Motivo da recusa (opcional)</span>
                   <textarea
                     rows={3}
-                    placeholder="Ex.: Dados duplicados ou teste inválido."
+                    placeholder="Ex.: Dados duplicados, teste inválido ou cliente não reconhecido."
                     value={rejectNotes}
                     onChange={e => setRejectNotes(e.target.value)}
                   />
                 </label>
                 <div className="form-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setRejectingSub(null)} disabled={busy}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setRejectingSub(null)}
+                    disabled={busy}
+                  >
                     Cancelar
                   </button>
                   <button type="submit" className="btn btn-danger" disabled={busy}>
-                    {busy ? 'Rejeitando...' : 'Confirmar Rejeição'}
+                    {busy ? 'Recusando...' : 'Confirmar Recusa'}
                   </button>
                 </div>
               </form>
@@ -495,9 +763,22 @@ export function ReviewRegistrationModal({
   const [financialWhatsapp, setFinancialWhatsapp] = useState(d.financial_whatsapp || '')
   const [financialDueDate, setFinancialDueDate] = useState(d.financial_due_date || '')
   const [financialNotes, setFinancialNotes] = useState(d.financial_notes || '')
+  const [links, setLinks] = useState<ClientLink[]>(d.links || [])
   const [reviewNotes, setReviewNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState('')
+
+  function handleAddLink() {
+    setLinks(prev => [...prev, { label: '', url: '' }])
+  }
+
+  function handleUpdateLink(index: number, field: keyof ClientLink, value: string) {
+    setLinks(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l))
+  }
+
+  function handleRemoveLink(index: number) {
+    setLinks(prev => prev.filter((_, i) => i !== index))
+  }
 
   async function handleApprove(e: FormEvent) {
     e.preventDefault()
@@ -520,7 +801,7 @@ export function ReviewRegistrationModal({
       financial_whatsapp: financialWhatsapp.trim() || null,
       financial_due_date: financialDueDate.trim() || null,
       financial_notes: financialNotes.trim() || null,
-      links: d.links || [],
+      links: links.filter(l => l.label.trim() || l.url.trim()),
     }
 
     try {
@@ -534,105 +815,192 @@ export function ReviewRegistrationModal({
     <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal modal-wide" role="dialog" aria-modal="true" aria-label="Revisão de Cadastro">
         <div className="modal-heading">
-          <h2>Revisar e Aprovar Cadastro</h2>
+          <div>
+            <h2>Revisar e Aprovar Cadastro</h2>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Submetido em {new Date(submission.created_at).toLocaleDateString('pt-BR')} às {new Date(submission.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">
             <X size={19} />
           </button>
         </div>
 
         <form onSubmit={handleApprove}>
-          <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '6px', fontSize: '0.85rem' }}>
-            <strong>Quarentena de Segurança:</strong> Verifique as informações preenchidas pelo cliente externo. Você pode fazer ajustes antes de oficializar o cadastro na base Somax.
+          <div className="quarantine-banner">
+            <ShieldAlert size={20} className="quarantine-banner-icon" />
+            <div className="quarantine-banner-text">
+              <strong>Quarentena de Segurança</strong>
+              <span>
+                Estes dados foram preenchidos pelo cliente externo via link público. Revise ou complemente os campos antes de oficializar o cadastro na base oficial do Somax Hub.
+              </span>
+            </div>
           </div>
 
           <div className="submission-detail-grid">
             <div className="detail-block">
-              <h4>Dados Gerais</h4>
+              <h4>
+                <Building2 size={16} /> Dados Gerais da Empresa
+              </h4>
               <label className="field">
-                <span>Nome / Nome Fantasia *</span>
-                <input required value={name} onChange={e => setName(e.target.value)} />
+                <span>Nome Fantasia / Operacional *</span>
+                <input required value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: Aurora Café" />
               </label>
               <label className="field">
                 <span>Razão Social</span>
-                <input value={legalName} onChange={e => setLegalName(e.target.value)} />
+                <input value={legalName} onChange={e => setLegalName(e.target.value)} placeholder="Ex.: Aurora Café Comércio Ltda." />
               </label>
               <label className="field">
-                <span>CNPJ / CPF</span>
-                <input value={cnpjCpf} onChange={e => setCnpjCpf(e.target.value)} />
+                <span>CNPJ ou CPF</span>
+                <input value={cnpjCpf} onChange={e => setCnpjCpf(e.target.value)} placeholder="00.000.000/0000-00" />
               </label>
             </div>
 
             <div className="detail-block">
-              <h4>Contato</h4>
+              <h4>
+                <User size={16} /> Contato Principal
+              </h4>
               <label className="field">
                 <span>Pessoa de Contato</span>
-                <input value={contactName} onChange={e => setContactName(e.target.value)} />
+                <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Ex.: Marina Lopes" />
               </label>
               <label className="field">
-                <span>E-mail</span>
-                <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
+                <span>E-mail de Contato</span>
+                <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="contato@empresa.com" />
               </label>
               <label className="field">
                 <span>Telefone / WhatsApp</span>
-                <input value={contactPhone} onChange={e => setContactPhone(maskPhone(e.target.value))} />
+                <input value={contactPhone} onChange={e => setContactPhone(maskPhone(e.target.value))} placeholder="(11) 90000-0000" />
               </label>
             </div>
 
-            {(d.financial_contact_name || d.financial_email || d.financial_due_date || d.financial_notes) && (
-              <div className="detail-block" style={{ gridColumn: '1 / -1' }}>
-                <h4>Dados Financeiros</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                  <label className="field">
-                    <span>Responsável Financeiro</span>
-                    <input value={financialContact} onChange={e => setFinancialContact(e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>E-mail Financeiro</span>
-                    <input type="email" value={financialEmail} onChange={e => setFinancialEmail(e.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>WhatsApp Financeiro</span>
-                    <input value={financialWhatsapp} onChange={e => setFinancialWhatsapp(maskPhone(e.target.value))} />
-                  </label>
-                  <label className="field">
-                    <span>Dia de Vencimento</span>
-                    <input value={financialDueDate} onChange={e => setFinancialDueDate(e.target.value)} />
-                  </label>
-                </div>
-                <label className="field" style={{ marginTop: '0.5rem' }}>
-                  <span>Observações Financeiras</span>
-                  <textarea rows={2} value={financialNotes} onChange={e => setFinancialNotes(e.target.value)} />
+            <div className="detail-block full-width">
+              <h4>
+                <CreditCard size={16} /> Dados Financeiros & Cobrança
+              </h4>
+              <div className="financial-grid">
+                <label className="field">
+                  <span>Responsável Financeiro</span>
+                  <input value={financialContact} onChange={e => setFinancialContact(e.target.value)} placeholder="Nome do responsável" />
+                </label>
+                <label className="field">
+                  <span>E-mail Financeiro</span>
+                  <input type="email" value={financialEmail} onChange={e => setFinancialEmail(e.target.value)} placeholder="financeiro@empresa.com" />
+                </label>
+                <label className="field">
+                  <span>WhatsApp Financeiro</span>
+                  <input value={financialWhatsapp} onChange={e => setFinancialWhatsapp(maskPhone(e.target.value))} placeholder="(11) 90000-0000" />
+                </label>
+                <label className="field">
+                  <span>Dia ou Data de Vencimento</span>
+                  <input
+                    value={financialDueDate}
+                    onChange={e => setFinancialDueDate(e.target.value)}
+                    placeholder="Ex.: Todo dia 10, 15 ou 2026-11-10"
+                  />
                 </label>
               </div>
-            )}
+              <label className="field" style={{ marginTop: '0.65rem' }}>
+                <span>Observações Financeiras</span>
+                <textarea
+                  rows={2}
+                  value={financialNotes}
+                  onChange={e => setFinancialNotes(e.target.value)}
+                  placeholder="Instruções de faturamento, NF ou dados bancários..."
+                />
+              </label>
+            </div>
+
+            {/* Links e Portais Informados */}
+            <div className="detail-block full-width">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h4 style={{ margin: 0 }}>
+                  <ExternalLink size={16} /> Links e Portais Informados
+                </h4>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleAddLink}
+                  title="Adicionar mais um link"
+                >
+                  <Plus size={13} /> Adicionar link
+                </button>
+              </div>
+
+              {links.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Nenhum link foi informado pelo cliente. Você pode adicionar portais ou links se desejar.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {links.map((link, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        style={{ flex: '1', fontSize: '0.85rem' }}
+                        placeholder="Nome (Ex.: Site Oficial, Drive)"
+                        value={link.label}
+                        onChange={e => handleUpdateLink(idx, 'label', e.target.value)}
+                      />
+                      <input
+                        style={{ flex: '2', fontSize: '0.85rem' }}
+                        placeholder="URL (https://exemplo.com)"
+                        value={link.url}
+                        onChange={e => handleUpdateLink(idx, 'url', e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="copy-mini-btn"
+                        style={{ color: 'var(--chip-danger-text)' }}
+                        onClick={() => handleRemoveLink(idx)}
+                        title="Remover este link"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <label className="field">
-            <span>Anotações da Revisão (interno)</span>
-            <input
-              placeholder="Ex.: Telefone confirmado por WhatsApp; cadastro validado."
-              value={reviewNotes}
-              onChange={e => setReviewNotes(e.target.value)}
-            />
-          </label>
+          <div className="review-notes-box">
+            <h4>
+              <FileText size={16} /> Anotações da Revisão Interna
+            </h4>
+            <label className="field" style={{ margin: 0 }}>
+              <span>Parecer ou justificativa interna (opcional)</span>
+              <input
+                placeholder="Ex.: Telefone e CNPJ confirmados via WhatsApp; cadastro validado."
+                value={reviewNotes}
+                onChange={e => setReviewNotes(e.target.value)}
+              />
+            </label>
+          </div>
 
           {formError && <p className="form-error" role="alert">{formError}</p>}
 
-          <div className="form-actions" style={{ justifyContent: 'space-between', marginTop: '1.5rem' }}>
+          <div className="form-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-main)' }}>
             <button
               type="button"
-              className="btn btn-danger"
+              className="btn btn-secondary"
+              style={{ color: 'var(--chip-danger-text)', borderColor: 'var(--chip-danger-border)' }}
               onClick={() => onReject(submission.id)}
               disabled={busy}
             >
-              Rejeitar Cadastro
+              <XCircle size={15} /> Recusar Cadastro
             </button>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.65rem' }}>
               <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary" disabled={busy}>
-                {busy ? 'Aprovando...' : 'Aprovar e Criar Cliente'}
+                {busy ? (
+                  'Aprovando...'
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} /> Aprovar e Criar Cliente
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -649,6 +1017,7 @@ interface ManageLinksModalProps {
   teams: Team[]
   preview: boolean
   onDeactivate: (linkId: string) => Promise<void>
+  onDelete?: (linkId: string) => Promise<void>
   notify: (msg: string) => void
 }
 
@@ -658,9 +1027,12 @@ export function ManageLinksModal({
   links,
   teams,
   onDeactivate,
+  onDelete,
   notify,
 }: ManageLinksModalProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   if (!isOpen) return null
 
@@ -683,85 +1055,226 @@ export function ManageLinksModal({
     }
   }
 
+  // Estatísticas de links
+  const activeCount = links.filter(l => l.is_active && new Date(l.expires_at) > new Date() && l.submission_count < l.max_submissions).length
+  const inactiveCount = links.length - activeCount
+  const totalSubmissions = links.reduce((acc, l) => acc + (l.submission_count || 0), 0)
+
+  // Filtragem de links
+  const filteredLinks = links.filter(link => {
+    const status = getStatus(link)
+    if (statusFilter === 'active' && status.class !== 'success') return false
+    if (statusFilter === 'inactive' && status.class === 'success') return false
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      const teamName = link.team_id ? teams.find(t => t.id === link.team_id)?.name || '' : 'Geral'
+      const match =
+        link.token.toLowerCase().includes(q) ||
+        (link.notes || '').toLowerCase().includes(q) ||
+        teamName.toLowerCase().includes(q)
+      if (!match) return false
+    }
+    return true
+  })
+
+  function getTeam(teamId: string | null): Team | undefined {
+    if (!teamId) return undefined
+    return teams.find(t => t.id === teamId)
+  }
+
   return (
     <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal modal-wide" role="dialog" aria-modal="true" aria-label="Links de Cadastro Gerados">
         <div className="modal-heading">
-          <h2>Links de Cadastro Gerados ({links.length})</h2>
+          <div>
+            <h2>Links de Cadastro Gerados ({links.length})</h2>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Links públicos criados para captação externa e auto-cadastro de novos clientes.
+            </p>
+          </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">
             <X size={19} />
           </button>
         </div>
 
+        {/* Resumo de Métricas dos Links */}
+        <div className="reg-link-stats-grid">
+          <div className="reg-link-stat-box">
+            <span className="reg-stat-num">{links.length}</span>
+            <span className="reg-stat-lbl">Total de Links</span>
+          </div>
+          <div className="reg-link-stat-box active-stat">
+            <span className="reg-stat-num">{activeCount}</span>
+            <span className="reg-stat-lbl">Links Ativos</span>
+          </div>
+          <div className="reg-link-stat-box">
+            <span className="reg-stat-num">{inactiveCount}</span>
+            <span className="reg-stat-lbl">Inativos / Expirados</span>
+          </div>
+          <div className="reg-link-stat-box highlight-stat">
+            <span className="reg-stat-num">{totalSubmissions}</span>
+            <span className="reg-stat-lbl">Envios Realizados</span>
+          </div>
+        </div>
+
+        {/* Barra de Filtro / Busca */}
+        {links.length > 0 && (
+          <div className="reg-link-filter-bar">
+            <div className="search" style={{ flex: 1 }}>
+              <Search size={15} />
+              <input
+                type="text"
+                placeholder="Buscar por token, observação ou equipe..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                aria-label="Buscar links"
+              />
+            </div>
+            <div className="view-switch">
+              <button
+                type="button"
+                className={statusFilter === 'all' ? 'selected' : ''}
+                onClick={() => setStatusFilter('all')}
+              >
+                Todos ({links.length})
+              </button>
+              <button
+                type="button"
+                className={statusFilter === 'active' ? 'selected' : ''}
+                onClick={() => setStatusFilter('active')}
+              >
+                Ativos ({activeCount})
+              </button>
+              <button
+                type="button"
+                className={statusFilter === 'inactive' ? 'selected' : ''}
+                onClick={() => setStatusFilter('inactive')}
+              >
+                Inativos ({inactiveCount})
+              </button>
+            </div>
+          </div>
+        )}
+
         {links.length === 0 ? (
-          <div className="empty">
-            <p>Nenhum link de cadastro foi gerado ainda.</p>
+          <div className="pending-empty-state">
+            <Link2 size={32} style={{ opacity: 0.5, marginBottom: '0.5rem' }} />
+            <h3>Nenhum link gerado</h3>
+            <p>Nenhum link de cadastro foi gerado ainda. Use o botão "Gerar link" para criar um novo link de auto-cadastro.</p>
+          </div>
+        ) : filteredLinks.length === 0 ? (
+          <div className="pending-empty-state">
+            <Search size={28} style={{ opacity: 0.5, marginBottom: '0.5rem' }} />
+            <h3>Nenhum link encontrado</h3>
+            <p>Nenhum link corresponde aos critérios de busca selecionados.</p>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="pending-subs-table">
-              <thead>
-                <tr>
-                  <th>Token / Link</th>
-                  <th>Equipe</th>
-                  <th>Envios</th>
-                  <th>Expira em</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {links.map(link => {
-                  const status = getStatus(link)
-                  const teamName = link.team_id ? teams.find(t => t.id === link.team_id)?.name || 'Equipe' : 'Geral'
-                  return (
-                    <tr key={link.id}>
-                      <td>
-                        <code style={{ fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)', padding: '0.15rem 0.35rem', borderRadius: '4px' }}>
-                          /cadastro/{link.token.slice(0, 8)}...
-                        </code>
-                        {link.notes && <small style={{ display: 'block', color: 'var(--text-secondary)' }}>{link.notes}</small>}
-                      </td>
-                      <td>{teamName}</td>
-                      <td>
-                        {link.submission_count} / {link.max_submissions} {link.single_use ? '(Único)' : ''}
-                      </td>
-                      <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {new Date(link.expires_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td>
-                        <span className={`reg-info-pill ${status.class}`}>{status.label}</span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
-                            onClick={() => copyLink(link.token, link.id)}
-                            title="Copiar URL completa"
-                          >
-                            {copiedId === link.id ? <Check size={14} /> : <Copy size={14} />}
-                            {copiedId === link.id ? 'Copiado' : 'Copiar'}
-                          </button>
-                          {link.is_active && new Date(link.expires_at) > new Date() && (
-                            <button
-                              type="button"
-                              className="btn btn-danger"
-                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
-                              onClick={() => onDeactivate(link.id)}
-                              title="Desativar este link imediatamente"
-                            >
-                              Desativar
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="reg-link-list">
+            {filteredLinks.map(link => {
+              const status = getStatus(link)
+              const team = getTeam(link.team_id)
+              const teamName = team ? team.name : 'Geral'
+              const isExpiredOrUsed = !link.is_active || new Date(link.expires_at) <= new Date() || link.submission_count >= link.max_submissions
+
+              return (
+                <div key={link.id} className={`reg-link-card ${isExpiredOrUsed ? 'is-inactive' : ''}`}>
+                  <div className="reg-link-card-header">
+                    <div className="reg-link-token-pill">
+                      <Link2 size={14} className="reg-link-icon" />
+                      <code>/cadastro/{link.token}</code>
+                    </div>
+
+                    <div className="reg-link-card-badges">
+                      <span className={`reg-info-pill ${status.class}`}>
+                        {status.label}
+                      </span>
+                      <span
+                        className="reg-info-pill primary"
+                        style={team ? { backgroundColor: `${team.color}15`, color: team.color, borderColor: `${team.color}35` } : {}}
+                      >
+                        {teamName}
+                      </span>
+                      <span className="reg-info-pill">
+                        {link.single_use ? 'Uso Único' : `Limite: ${link.max_submissions}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="reg-link-card-body">
+                    {link.notes && <p className="reg-link-notes">{link.notes}</p>}
+
+                    <div className="reg-link-details-grid">
+                      <div className="reg-link-detail-col">
+                        <span className="reg-link-detail-lbl">Submissões</span>
+                        <strong className="reg-link-detail-val">
+                          {link.submission_count} de {link.max_submissions} {link.single_use ? '(Único)' : ''}
+                        </strong>
+                      </div>
+                      <div className="reg-link-detail-col">
+                        <span className="reg-link-detail-lbl">Validade / Expiração</span>
+                        <strong className="reg-link-detail-val">
+                          {new Date(link.expires_at).toLocaleDateString('pt-BR')} às {new Date(link.expires_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </strong>
+                      </div>
+                      <div className="reg-link-detail-col">
+                        <span className="reg-link-detail-lbl">Coleta Financeira</span>
+                        <strong className="reg-link-detail-val">
+                          {link.include_financial ? 'Sim (Habilitada)' : 'Não (Apenas dados)'}
+                        </strong>
+                      </div>
+                      <div className="reg-link-detail-col">
+                        <span className="reg-link-detail-lbl">Criado em</span>
+                        <span className="reg-link-detail-val" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {new Date(link.created_at).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="reg-link-card-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => copyLink(link.token, link.id)}
+                      title="Copiar link completo para enviar ao cliente"
+                    >
+                      {copiedId === link.id ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedId === link.id ? 'Copiado!' : 'Copiar Link'}
+                    </button>
+
+                    {link.is_active && new Date(link.expires_at) > new Date() && link.submission_count < link.max_submissions && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ color: 'var(--chip-danger-text)', borderColor: 'var(--chip-danger-border)' }}
+                        onClick={() => onDeactivate(link.id)}
+                        title="Desativar este link imediatamente"
+                      >
+                        Desativar
+                      </button>
+                    )}
+
+                    {onDelete && (
+                      <button
+                        type="button"
+                        className="btn btn-danger-ghost btn-sm"
+                        onClick={() => {
+                          const msg = `Tem certeza de que deseja excluir permanentemente o link "/cadastro/${link.token.slice(0, 8)}..."? Esta ação não pode ser desfeita.`
+                          if (window.confirm(msg)) {
+                            void onDelete(link.id)
+                          }
+                        }}
+                        title="Excluir este link de cadastro permanentemente"
+                        aria-label="Excluir link"
+                      >
+                        <Trash2 size={14} /> Excluir
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 

@@ -122,7 +122,7 @@ describe('QA: Estrutura e Acessibilidade da Tabela de Resumo por Quadro em Relat
   it('exibe estado vazio amigável quando não houver resumos de quadros disponíveis', async () => {
     const reportsModule = await import('./reports')
     const spy = vi.spyOn(reportsModule, 'buildReport').mockReturnValueOnce({
-      totals: { all: 0, active: 0, done: 0, blocked: 0, backlog: 0, overdue: 0, progressPercent: 0, totalStoryPoints: 0, doneStoryPoints: 0 },
+      totals: { all: 0, active: 0, done: 0, blocked: 0, backlog: 0, overdue: 0, progressPercent: 0, totalStoryPoints: 0, doneStoryPoints: 0, journeys: 0, branchesCount: 0 },
       teamCounts: new Map(),
       stageCounts: new Map(),
       rows: [],

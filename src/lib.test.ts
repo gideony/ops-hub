@@ -46,6 +46,7 @@ describe('conclusão baseada na etapa', () => {
     expect(messageError({ error: 'unauthorized' })).toBe('unauthorized')
     expect(messageError({ outro_campo: 123 })).toBe('{"outro_campo":123}')
     expect(messageError(null)).toBe('Erro desconhecido')
+    expect(messageError(new TypeError('Failed to fetch'))).toContain('Falha de conexão com o servidor Supabase')
   })
 
   it('aplica mascara em telefones e whatsapp corretamente', () => {

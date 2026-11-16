@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Dispatch, FormEvent, ReactNode, SetStateAction } from 'react'
-import { ArrowRight, Clock, LayoutGrid, Link2, List, Plus, Search, Share2, X } from 'lucide-react'
+import { ArrowRight, Clock, Download, LayoutGrid, Link2, List, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { maskPhone, messageError, supabase } from './lib'
 import type { Client, ClientRegistrationData, ClientRegistrationLink, ClientRegistrationSubmission, Profile, Team } from './lib'
 import type { Data } from './App'
 import UserEditor from './UserEditor'
 import { clearDraft, getDraft, saveDraft } from './drafts'
 import { GenerateLinkModal, ManageLinksModal, PendingRegistrationsModal } from './ClientRegistrationModals'
+import { ClientProfileModal } from './ClientProfileModal'
+import { downloadClientsCsv } from './client-export'
 
 type Run = (action: () => Promise<unknown>, success?: string) => Promise<boolean>
 type BaseProps = { data: Data; preview: boolean; setData: Dispatch<SetStateAction<Data>>; run: Run; notify: (message:string)=>void }
@@ -69,6 +71,7 @@ export function ClientsPage({
   const [view, setView] = useState<'cards' | 'list'>(() => preview && new URLSearchParams(window.location.search).get('visao') === 'lista' ? 'list' : 'cards')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Client | null>(null)
+  const [viewingClient, setViewingClient] = useState<Client | null>(null)
   const [editing, setEditing] = useState(() => preview && new URLSearchParams(window.location.search).has('novo-cliente'))
   const [tab, setTab] = useState<'geral' | 'financeiro' | 'links' | 'integracao'>('geral')
   const [name, setName] = useState('')
@@ -119,6 +122,10 @@ export function ClientsPage({
   const pendingCount = registrationSubmissions.filter(s => s.status === 'pending').length
 
   const filtered = data.clients.filter(client => `${client.name} ${client.legal_name || ''} ${client.contact_name || ''} ${client.contact_email || ''}`.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR'))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+
+  function openProfile(client: Client) {
+    setViewingClient(client)
+  }
 
   function open(client: Client | null) {
     setSelected(client); setEditing(true); setTab('geral'); setFormError('')
@@ -178,6 +185,69 @@ export function ClientsPage({
       if (userId && !selected) clearDraft(userId, 'client_new')
       setEditing(false)
     }
+  }
+
+  async function deleteClient(client: Client) {
+    if (!canAdmin) return
+    const clientTasks = data.tasks.filter(t => t.client_id === client.id)
+    if (clientTasks.length > 0) {
+      const blockMsg = `Este cliente tem ${clientTasks.length} ${clientTasks.length === 1 ? 'demanda vinculada' : 'demandas vinculadas'}. Para excluí-lo, é necessário reatribuir ou excluir as demandas primeiro.`
+      notify(blockMsg)
+      return
+    }
+
+    const msg = `Tem certeza de que deseja excluir o cliente "${client.name}"? Esta ação não pode ser desfeita.`
+    if (!window.confirm(msg)) return
+
+    if (preview) {
+      setData(prev => ({
+        ...prev,
+        clients: prev.clients.filter(c => c.id !== client.id),
+      }))
+      if (selected?.id === client.id) {
+        setEditing(false)
+        setSelected(null)
+      }
+      notify('Cliente excluído na prévia local')
+      return
+    }
+
+    const ok = await run(async () => {
+      const { error } = await supabase.from('clients').delete().eq('id', client.id)
+      if (error) throw error
+      setData(prev => ({
+        ...prev,
+        clients: prev.clients.filter(c => c.id !== client.id),
+      }))
+    }, 'Cliente excluído com sucesso')
+
+    if (ok) {
+      if (selected?.id === client.id) {
+        setEditing(false)
+        setSelected(null)
+      }
+      notify('Cliente excluído com sucesso!')
+    }
+  }
+
+  function handleExportClients() {
+    if (filtered.length === 0) {
+      notify('Nenhum cliente disponível para exportação.')
+      return
+    }
+    downloadClientsCsv(filtered)
+    notify(
+      filtered.length === 1
+        ? '1 cliente exportado com sucesso!'
+        : `${filtered.length} clientes exportados com sucesso!`
+    )
+  }
+
+  function handleExportSingleClient(client: Client) {
+    const slug = client.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30)
+    const today = new Date().toISOString().slice(0, 10)
+    downloadClientsCsv([client], `somax-cliente-${slug || 'ficha'}-${today}.csv`)
+    notify(`Dados do cliente "${client.name}" exportados com sucesso!`)
   }
 
   function handleLinkCreated(link: ClientRegistrationLink) {
@@ -296,6 +366,34 @@ export function ClientsPage({
     }, 'Link desativado com sucesso.')
   }
 
+  async function handleDeleteLink(linkId: string) {
+    if (preview) {
+      setData(prev => ({
+        ...prev,
+        registrationLinks: (prev.registrationLinks || []).filter(l => l.id !== linkId),
+        registrationSubmissions: (prev.registrationSubmissions || []).filter(s => s.link_id !== linkId),
+      }))
+      setRegistrationLinks(prev => prev.filter(l => l.id !== linkId))
+      setRegistrationSubmissions(prev => prev.filter(s => s.link_id !== linkId))
+      notify('Link de cadastro excluído na prévia local.')
+      return
+    }
+
+    const ok = await run(async () => {
+      const { error } = await supabase
+        .from('client_registration_links')
+        .delete()
+        .eq('id', linkId)
+      if (error) throw error
+      setRegistrationLinks(prev => prev.filter(l => l.id !== linkId))
+      setRegistrationSubmissions(prev => prev.filter(s => s.link_id !== linkId))
+    }, 'Link excluído com sucesso.')
+
+    if (ok) {
+      notify('Link de cadastro excluído com sucesso!')
+    }
+  }
+
   return (
     <section className="content">
       <div className="page-heading">
@@ -338,6 +436,15 @@ export function ClientsPage({
               </button>
             </>
           )}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExportClients}
+            title="Exportar clientes com todos os dados por coluna (CSV para Excel)"
+            disabled={filtered.length === 0}
+          >
+            <Download size={15} /> Exportar clientes
+          </button>
           {canAdmin && (
             <button className="btn btn-primary" onClick={() => open(null)}>
               <Plus size={16} /> Novo cliente
@@ -369,7 +476,7 @@ export function ClientsPage({
       {view === 'cards' ? (
         <div className="client-grid">
           {filtered.map(client => (
-            <button key={client.id} className="client-card" onClick={() => open(client)}>
+            <button key={client.id} className="client-card" onClick={() => openProfile(client)}>
               <div className="client-logo">{initials(client.name)}</div>
               <div>
                 <h2>{client.name}</h2>
@@ -393,14 +500,14 @@ export function ClientsPage({
                 <th>Contato</th>
                 <th>E-mail</th>
                 <th>Telefone</th>
-                <th>Ação</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(client => (
                 <tr key={client.id}>
                   <td>
-                    <button className="table-title" onClick={() => open(client)}>
+                    <button className="table-title" onClick={() => openProfile(client)}>
                       {client.name}
                       <small>{client.legal_name || '—'}</small>
                     </button>
@@ -409,9 +516,31 @@ export function ClientsPage({
                   <td>{client.contact_email || '—'}</td>
                   <td>{client.contact_phone || '—'}</td>
                   <td>
-                    <button className="text-link" onClick={() => open(client)}>
-                      {canAdmin ? 'Editar' : 'Ver'}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <button className="text-link" onClick={() => openProfile(client)}>
+                        Ver Perfil
+                      </button>
+                      {canAdmin && (
+                        <button className="text-link" onClick={() => open(client)} title="Editar dados">
+                          Editar
+                        </button>
+                      )}
+                      {canAdmin && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          style={{ color: 'var(--chip-danger-text)', padding: '4px' }}
+                          onClick={e => {
+                            e.stopPropagation()
+                            void deleteClient(client)
+                          }}
+                          title={`Excluir cliente ${client.name}`}
+                          aria-label={`Excluir cliente ${client.name}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -495,8 +624,14 @@ export function ClientsPage({
                       <input type="tel" value={financialWhatsapp} onChange={event => setFinancialWhatsapp(maskPhone(event.target.value))} placeholder="(00) 00000-0000" readOnly={!canAdmin} />
                     </Field>
                   </div>
-                  <Field label="Data de vencimento">
-                    <input type="date" value={financialDueDate} onChange={event => setFinancialDueDate(event.target.value)} readOnly={!canAdmin} />
+                  <Field label="Data ou dia de vencimento">
+                    <input
+                      type="text"
+                      value={financialDueDate}
+                      onChange={event => setFinancialDueDate(event.target.value)}
+                      placeholder="Ex.: Todo dia 10, 15 ou 2026-11-10"
+                      readOnly={!canAdmin}
+                    />
                   </Field>
                   <Field label="Observações financeiras">
                     <textarea rows={4} value={financial} onChange={event => setFinancial(event.target.value)} readOnly={!canAdmin} />
@@ -536,15 +671,40 @@ export function ClientsPage({
               {formError && <p className="form-error" role="alert">{formError}</p>}
             </div>
 
-            <div className="form-actions admin-modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
-                Fechar
-              </button>
-              {canAdmin && (
-                <button type="submit" className="btn btn-primary">
-                  {selected ? 'Salvar alterações' : 'Criar cliente'}
-                </button>
+            <div className="form-actions admin-modal-actions" style={{ display: 'flex', justifyContent: selected ? 'space-between' : 'flex-end', alignItems: 'center' }}>
+              {selected && (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {canAdmin && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ color: 'var(--chip-danger-text)', borderColor: 'var(--chip-danger-border)' }}
+                      onClick={() => void deleteClient(selected)}
+                      title={`Excluir cliente ${selected.name}`}
+                    >
+                      <Trash2 size={15} /> Excluir cliente
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => handleExportSingleClient(selected)}
+                    title={`Exportar dados de ${selected.name} em CSV`}
+                  >
+                    <Download size={15} /> Exportar dados
+                  </button>
+                </div>
               )}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
+                  Fechar
+                </button>
+                {canAdmin && (
+                  <button type="submit" className="btn btn-primary">
+                    {selected ? 'Salvar alterações' : 'Criar cliente'}
+                  </button>
+                )}
+              </div>
             </div>
           </form>
         </Modal>
@@ -585,8 +745,35 @@ export function ClientsPage({
         teams={data.teams}
         preview={preview}
         onDeactivate={handleDeactivateLink}
+        onDelete={handleDeleteLink}
         notify={notify}
       />
+
+      {/* Modal: Perfil Detalhado do Cliente */}
+      {viewingClient && (
+        <ClientProfileModal
+          client={viewingClient}
+          isOpen={Boolean(viewingClient)}
+          onClose={() => setViewingClient(null)}
+          onEdit={() => {
+            const c = viewingClient
+            setViewingClient(null)
+            open(c)
+          }}
+          onExport={() => handleExportSingleClient(viewingClient)}
+          onDelete={canAdmin ? () => {
+            const c = viewingClient
+            setViewingClient(null)
+            void deleteClient(c)
+          } : undefined}
+          tasks={data.tasks.filter(t => t.client_id === viewingClient.id)}
+          teams={data.teams}
+          stages={data.stages}
+          profiles={data.profiles}
+          canAdmin={canAdmin}
+          notify={notify}
+        />
+      )}
     </section>
   )
 }
