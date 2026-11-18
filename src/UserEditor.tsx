@@ -3,8 +3,6 @@ import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import {
   AlertCircle,
   Check,
-  Eye,
-  EyeOff,
   KeyRound,
   LockKeyhole,
   Mail,
@@ -18,6 +16,7 @@ import {
 import { maskPhone, messageError, supabase } from './lib'
 import type { Profile } from './lib'
 import type { Data } from './App'
+import PasswordInput from './PasswordInput'
 import './user-editor.css'
 
 type Props = {
@@ -62,7 +61,6 @@ export default function UserEditor({
       .map(member => member.team_id)
   )
   const [temporaryPassword, setTemporaryPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -478,26 +476,15 @@ export default function UserEditor({
                   <KeyRound size={14} />
                   <span>Nova senha temporária (opcional)</span>
                 </div>
-                <div className="user-password-input-wrap user-editor-field">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={temporaryPassword}
-                    onChange={event => setTemporaryPassword(event.target.value)}
-                    minLength={8}
-                    maxLength={128}
-                    autoComplete="new-password"
-                    placeholder="Deixe em branco para manter a senha atual"
-                  />
-                  <button
-                    type="button"
-                    className="user-password-toggle"
-                    onClick={() => setShowPassword(prev => !prev)}
-                    title={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                    aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
+                <PasswordInput
+                  wrapClassName="user-password-input-wrap user-editor-field"
+                  value={temporaryPassword}
+                  onChange={event => setTemporaryPassword(event.target.value)}
+                  minLength={8}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  placeholder="Deixe em branco para manter a senha atual"
+                />
                 <p className="user-password-hint">
                   Ao definir uma nova senha temporária, a pessoa receberá a instrução
                   de alterá-la obrigatoriamente no primeiro acesso.

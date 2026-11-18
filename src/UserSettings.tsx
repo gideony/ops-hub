@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Check, LockKeyhole, Moon, Save, ShieldCheck, Sun, UserRound } from 'lucide-react'
 import { maskPhone, messageError, supabase } from './lib'
 import type { Profile } from './lib'
+import PasswordInput from './PasswordInput'
 
 type Props = {
   profile: Profile | null
@@ -92,8 +93,8 @@ export default function UserSettings({ profile, email, teams, preview, theme, on
       </section>
       <div className="account-side">
         <section className="account-panel"><div className="account-panel-heading"><LockKeyhole size={18}/><div><h2>Segurança</h2><p>Altere sua senha de acesso.</p></div></div><form onSubmit={event => void savePassword(event)} className="account-form">
-          <label className="field"><span>Nova senha</span><input type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={8} autoComplete="new-password" required/></label>
-          <label className="field"><span>Confirmar nova senha</span><input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={8} autoComplete="new-password" required/></label>
+          <label className="field"><span>Nova senha</span><PasswordInput value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={8} autoComplete="new-password" required/></label>
+          <label className="field"><span>Confirmar nova senha</span><PasswordInput value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={8} autoComplete="new-password" required/></label>
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
           <button className="btn btn-secondary" type="submit" disabled={savingPassword || preview}>{savingPassword ? 'Alterando...' : 'Alterar senha'}</button>
           {preview && <p className="account-hint">A senha só pode ser alterada com o Supabase configurado.</p>}

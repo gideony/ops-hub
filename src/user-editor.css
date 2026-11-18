@@ -420,23 +420,13 @@
   padding-right: 36px;
 }
 
-.user-password-toggle {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: 0;
-  color: #94a3b8;
-  padding: 4px;
-  border-radius: 5px;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
+.user-password-input-wrap .password-input-toggle {
+  color: #64748b;
 }
 
-.user-password-toggle:hover {
-  color: #475569;
+.user-password-input-wrap .password-input-toggle:hover,
+.user-password-input-wrap .password-input-toggle:focus-visible {
+  color: #334155;
 }
 
 .user-password-hint {
@@ -614,11 +604,12 @@
   border-color: var(--dark-border);
 }
 
-:root[data-theme='dark'] .user-password-toggle {
+:root[data-theme='dark'] .user-password-input-wrap .password-input-toggle {
   color: var(--dark-muted);
 }
 
-:root[data-theme='dark'] .user-password-toggle:hover {
+:root[data-theme='dark'] .user-password-input-wrap .password-input-toggle:hover,
+:root[data-theme='dark'] .user-password-input-wrap .password-input-toggle:focus-visible {
   color: var(--dark-text);
 }
 
