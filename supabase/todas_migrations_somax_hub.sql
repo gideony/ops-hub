@@ -1217,13 +1217,13 @@ update public.task_checklist tc
 set group_name = g.name
 from public.checklist_template_items ti
 join public.checklist_template_groups g on g.id = ti.group_id
-where tc.group_name is null and lower(trim(tc.title)) = lower(trim(ti.title));
+where tc.group_name is null and lower(trim(tc.title)) = lower(trim(ti.title)) and exists (select 1 from public.tasks t where t.id = tc.task_id);
 
 update public.task_checklist tc
 set group_name = s.name
 from public.subtask_templates st
 join public.stages s on s.id = st.stage_id
-where tc.group_name is null and lower(trim(tc.title)) = lower(trim(st.title));
+where tc.group_name is null and lower(trim(tc.title)) = lower(trim(st.title)) and exists (select 1 from public.tasks t where t.id = tc.task_id);
 
 
 
@@ -1382,6 +1382,8 @@ create policy tasks_read on public.tasks for select to authenticated
   );
 
 -- 7. RPC atômica para criar quadro com etapas
+drop function if exists public.create_custom_board(text, text, text, text, uuid, boolean, uuid[], jsonb);
+drop function if exists public.create_custom_board;
 create or replace function public.create_custom_board(
   p_name text,
   p_description text,
@@ -1476,6 +1478,8 @@ where not exists (
 -- Migration: 202611100008_create_custom_board_rpc_defaults.sql
 -- Objetivo: Garantir parâmetros padrão na RPC create_custom_board para compatibilidade total com PostgREST e chamadas do cliente.
 
+drop function if exists public.create_custom_board(text, text, text, text, uuid, boolean, uuid[], jsonb);
+drop function if exists public.create_custom_board;
 create or replace function public.create_custom_board(
   p_name text,
   p_description text default null,
@@ -3076,12 +3080,15 @@ create index if not exists tasks_root_task_idx
 create index if not exists tasks_origin_task_idx
   on public.tasks (origin_task_id);
 
--- 2. Configurações por quadro na tabela public.boards ("Ao concluir")
+-- 2. Configurações por quadro na tabela public.boards ("Ao concluir" e Cor)
 alter table public.boards
+  add column if not exists color text default '#2563eb',
   add column if not exists on_completion_action text not null default 'ask'
     check (on_completion_action in ('ask', 'suggest_default', 'none')),
   add column if not exists default_forward_board_id uuid references public.boards(id) on delete set null,
   add column if not exists default_forward_stage_id uuid default null;
+
+update public.boards set color = '#2563eb' where color is null;
 
 -- 3. Tabela de linha do tempo e eventos imutáveis da jornada
 create table if not exists public.task_lineage_events (
@@ -3215,7 +3222,7 @@ begin
         from public.stages s where s.id = v_orig.stage_id;
     end if;
 
-    select b.name, b.color into v_orig_board_name, v_orig_board_color
+    select b.name, coalesce(b.color, '#2563eb') into v_orig_board_name, v_orig_board_color
       from public.boards b where b.id = v_orig.board_id;
   else
     select s.name, s.is_final into v_orig_stage_name, v_orig_is_final
@@ -3718,12 +3725,15 @@ create index if not exists tasks_root_task_idx
 create index if not exists tasks_origin_task_idx
   on public.tasks (origin_task_id);
 
--- 2. Configurações por quadro na tabela public.boards ("Ao concluir")
+-- 2. Configurações por quadro na tabela public.boards ("Ao concluir" e Cor)
 alter table public.boards
+  add column if not exists color text default '#2563eb',
   add column if not exists on_completion_action text not null default 'ask'
     check (on_completion_action in ('ask', 'suggest_default', 'none')),
   add column if not exists default_forward_board_id uuid references public.boards(id) on delete set null,
   add column if not exists default_forward_stage_id uuid default null;
+
+update public.boards set color = '#2563eb' where color is null;
 
 -- 3. Tabela de linha do tempo e eventos imutáveis da jornada
 create table if not exists public.task_lineage_events (
@@ -3871,7 +3881,7 @@ begin
         from public.stages s where s.id = v_orig.stage_id;
     end if;
 
-    select b.name, b.color into v_orig_board_name, v_orig_board_color
+    select b.name, coalesce(b.color, '#2563eb') into v_orig_board_name, v_orig_board_color
       from public.boards b where b.id = v_orig.board_id;
   else
     select s.name, s.is_final into v_orig_stage_name, v_orig_is_final
@@ -4009,6 +4019,40 @@ begin
     now(),
     now()
   ) returning id into v_new_task_id;
+
+  -- 8. Clonar todas as subtarefas preservando o estado real de conclusão (done) e agrupamento
+  insert into public.task_checklist (
+    task_id,
+    title,
+    done,
+    position,
+    group_name
+  )
+  select
+    v_new_task_id,
+    tc.title,
+    tc.done,
+    tc.position,
+    tc.group_name
+  from public.task_checklist tc
+  where tc.task_id = p_task_id
+  order by tc.position;
+
+  -- 8.1 Clonar relatórios e comentários anteriores da tarefa de origem
+  insert into public.task_comments (
+    task_id,
+    author_id,
+    body,
+    created_at
+  )
+  select
+    v_new_task_id,
+    c.author_id,
+    c.body,
+    c.created_at
+  from public.task_comments c
+  where c.task_id = p_task_id
+  order by c.created_at;
 
   update public.tasks
      set forwarded_at = now(),
