@@ -170,7 +170,9 @@ export async function unreadMessageCounts() {
 }
 
 export function completed(task: Task, stages: (Stage | BoardStage)[]) {
-  return stages.find(s => s.id === task.stage_id)?.is_final === true
+  const stage = stages.find(s => s.id === task.stage_id)
+  if (stage) return stage.is_final === true
+  return Boolean(task.completed_at)
 }
 export function dateBR(value?: string | null) { return value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value.slice(0, 10) + 'T12:00:00Z')) : 'Sem prazo' }
 export function timeBR(value: string) { return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Fortaleza' }).format(new Date(value)) }

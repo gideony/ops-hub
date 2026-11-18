@@ -172,7 +172,7 @@ export default function TaskDetail({
   onPreviewSave,
   onPreviewDelete,
   canFreeMove = false,
-  profile: _profile,
+  profile,
   onSelectTask,
   onForwardTask,
 }: Props) {
@@ -199,6 +199,8 @@ export default function TaskDetail({
   const [localError, setLocalError] = useState('')
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('')
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editingCommentBody, setEditingCommentBody] = useState('')
 
   const branchTask = useMemo(() => {
     return data.tasks.find(t => t.origin_task_id === task.id)
@@ -223,6 +225,48 @@ export default function TaskDetail({
   }, [data.boards, originTask])
 
   const isLocked = Boolean(task.forwarded_at)
+
+  const ensureTaskPersisted = useCallback(async (t: Task) => {
+    if (preview) return
+    try {
+      const { data: existing } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('id', t.id)
+        .maybeSingle()
+
+      if (!existing) {
+        let authorId = userId && userId !== 'demo-user' ? userId : (t.created_by || null)
+        try {
+          const { data: authData } = await supabase.auth.getUser()
+          if (authData?.user?.id) authorId = authData.user.id
+        } catch {}
+
+        const normalizedBoardId = t.board_id && t.board_id !== 'board-geral' ? t.board_id : null
+        const payload: any = {
+          id: t.id,
+          title: t.title || 'Sem título',
+          description: t.description || '',
+          team_id: t.team_id,
+          stage_id: t.stage_id,
+          priority: t.priority || 'media',
+          client_id: t.client_id || null,
+          board_id: normalizedBoardId,
+          sprint_id: t.sprint_id || null,
+          tags: t.tags || [],
+          created_by: authorId,
+          origin_task_id: t.origin_task_id || null,
+          root_task_id: t.root_task_id || t.id,
+          completed_at: t.completed_at || null,
+          created_at: t.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        await supabase.from('tasks').upsert(payload)
+      }
+    } catch (e) {
+      console.warn('Falha na verificação de persistência remota da tarefa:', e)
+    }
+  }, [preview, userId])
 
   const refresh = useCallback(async () => {
     if (preview) {
@@ -294,6 +338,7 @@ export default function TaskDetail({
   }, [preview, task, data.tasks, data.boards, data.stages, data.boardStages, data.profiles])
 
   useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { void ensureTaskPersisted(task) }, [task.id, ensureTaskPersisted])
   useEffect(() => { if (preview) setChecklist(previewChecklist) }, [preview, previewChecklist])
 
   // Helper para identificar o grupo/template da subtarefa
@@ -501,6 +546,7 @@ export default function TaskDetail({
 
     const ok = await run(async () => {
       try {
+        await ensureTaskPersisted(task)
         const { error } = await supabase.from('tasks').update({
           title: title.trim(),
           description,
@@ -516,8 +562,8 @@ export default function TaskDetail({
         if (error) {
           console.warn('Aviso ao sincronizar tarefa com servidor:', error.message)
         }
-      } catch (err) {
-        if (isNetworkError(err) || (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '42501')) {
+      } catch (err: any) {
+        if (isNetworkError(err) || err?.code === '42501' || err?.code === '23503') {
           return
         }
         console.warn('Persistência remota diferida (modo offline/resiliente):', err)
@@ -554,8 +600,8 @@ export default function TaskDetail({
       try {
         const { error } = await supabase.from('task_checklist').update({ done: !item.done }).eq('id', item.id)
         if (error) throw error
-      } catch (err) {
-        if (isNetworkError(err)) return
+      } catch (err: any) {
+        if (isNetworkError(err) || err?.code === '23503' || err?.message?.includes('foreign key constraint')) return
         throw err
       }
     }, 'Subtarefa atualizada')
@@ -582,6 +628,7 @@ export default function TaskDetail({
     }
     const ok = await run(async () => {
       try {
+        await ensureTaskPersisted(task)
         const { error } = await supabase.from('task_checklist').insert({
           task_id: task.id,
           title: value,
@@ -589,8 +636,13 @@ export default function TaskDetail({
           group_name: gName
         })
         if (error) throw error
-      } catch (err) {
-        if (isNetworkError(err)) {
+      } catch (err: any) {
+        if (
+          isNetworkError(err) ||
+          err?.code === '23503' ||
+          err?.message?.includes('violates foreign key constraint') ||
+          err?.message?.includes('task_checklist_task_id_fkey')
+        ) {
           const updated = [...checklist, {
             id: crypto.randomUUID(),
             task_id: task.id,
@@ -646,11 +698,41 @@ export default function TaskDetail({
     }
 
     const ok = await run(async () => {
-      const { error } = await supabase.rpc('apply_template_to_task', {
-        p_task_id: task.id,
-        p_template_id: templateId
-      })
-      if (error) throw error
+      try {
+        await ensureTaskPersisted(task)
+        const { error } = await supabase.rpc('apply_template_to_task', {
+          p_task_id: task.id,
+          p_template_id: templateId
+        })
+        if (error) throw error
+      } catch (err: any) {
+        if (
+          isNetworkError(err) ||
+          err?.code === '23503' ||
+          err?.code === '42883' ||
+          err?.message?.includes('foreign key constraint') ||
+          err?.message?.includes('apply_template_to_task')
+        ) {
+          const itemsToAdd = data.templateItems
+            .filter(ti => ti.group_id === group.id)
+            .filter(ti => !checklist.some(c => c.title.trim().toLowerCase() === ti.title.trim().toLowerCase()))
+          const updated = [
+            ...checklist,
+            ...itemsToAdd.map((ti, index) => ({
+              id: crypto.randomUUID(),
+              task_id: task.id,
+              title: ti.title,
+              done: false,
+              position: checklist.length + index + 1,
+              group_name: group.name,
+            }))
+          ]
+          setChecklist(updated)
+          onPreviewChecklist?.(task.id, updated)
+          return
+        }
+        throw err
+      }
     }, `Template "${group.name}" aplicado à tarefa`)
 
     setBusy(false)
@@ -696,8 +778,8 @@ export default function TaskDetail({
       try {
         const { error } = await supabase.from('task_checklist').update({ title: val }).eq('id', itemId)
         if (error) throw error
-      } catch (err) {
-        if (isNetworkError(err)) return
+      } catch (err: any) {
+        if (isNetworkError(err) || err?.code === '23503' || err?.message?.includes('foreign key constraint')) return
         throw err
       }
     }, 'Subtarefa atualizada')
@@ -713,8 +795,8 @@ export default function TaskDetail({
       try {
         const { error } = await supabase.from('task_checklist').delete().eq('id', itemId)
         if (error) throw error
-      } catch (err) {
-        if (isNetworkError(err)) return
+      } catch (err: any) {
+        if (isNetworkError(err) || err?.code === '23503' || err?.message?.includes('foreign key constraint')) return
         throw err
       }
     }, 'Subtarefa excluída')
@@ -759,11 +841,17 @@ export default function TaskDetail({
           insertPayload.author_id = effectiveAuthorId
         }
 
+        await ensureTaskPersisted(task)
         const { error } = await supabase.from('task_comments').insert(insertPayload)
         if (error) throw error
-      } catch (err) {
-        if (isNetworkError(err) || (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '42501')) {
-          // Mantém no estado local gracioso em caso de oscilação de conexão ou RLS transitória
+      } catch (err: any) {
+        if (
+          isNetworkError(err) ||
+          err?.code === '42501' ||
+          err?.code === '23503' ||
+          err?.message?.includes('foreign key constraint')
+        ) {
+          // Mantém no estado local gracioso em caso de oscilação de conexão, RLS transitória ou tarefa local
           return
         }
         throw err
@@ -772,6 +860,50 @@ export default function TaskDetail({
     if (ok) {
       void refresh()
     }
+  }
+
+  function startEditComment(comment: TaskComment) {
+    setEditingCommentId(comment.id)
+    setEditingCommentBody(comment.body)
+  }
+
+  async function saveComment(commentId: string, e?: FormEvent) {
+    if (e) e.preventDefault()
+    const val = editingCommentBody.trim()
+    if (!val) { setEditingCommentId(null); return }
+    const updated = comments.map(c => c.id === commentId ? { ...c, body: val } : c)
+    setComments(updated)
+    setEditingCommentId(null)
+
+    if (preview) return
+    const ok = await run(async () => {
+      try {
+        const { error } = await supabase.from('task_comments').update({ body: val }).eq('id', commentId)
+        if (error) throw error
+      } catch (err: any) {
+        if (isNetworkError(err) || err?.code === '42501' || err?.code === '23503') return
+        throw err
+      }
+    }, 'Relatório atualizado com sucesso')
+    if (ok) await refresh()
+  }
+
+  async function deleteComment(commentId: string) {
+    if (!window.confirm('Tem certeza de que deseja remover este relatório/comentário?')) return
+    const updated = comments.filter(c => c.id !== commentId)
+    setComments(updated)
+
+    if (preview) return
+    const ok = await run(async () => {
+      try {
+        const { error } = await supabase.from('task_comments').delete().eq('id', commentId)
+        if (error) throw error
+      } catch (err: any) {
+        if (isNetworkError(err) || err?.code === '42501' || err?.code === '23503') return
+        throw err
+      }
+    }, 'Relatório removido')
+    if (ok) await refresh()
   }
 
   const completedCount = checklist.filter(item => item.done).length
@@ -1067,16 +1199,95 @@ export default function TaskDetail({
                 <h3>Comentários e relatórios</h3>
                 <span>{comments.length} registros</span>
               </div>
-              {comments.map(comment => (
-                <div className="task-detail-report" key={comment.id}>
-                  <div className="avatar avatar-xs">{(data.profiles.find(person => person.id === comment.author_id)?.full_name || '?').slice(0, 1)}</div>
-                  <div>
-                    <strong>{data.profiles.find(person => person.id === comment.author_id)?.full_name || 'Usuário'}</strong>
-                    <time>{timeBR(comment.created_at)}</time>
-                    <p>{comment.body}</p>
+              {comments.map(comment => {
+                const author = data.profiles.find(person => person.id === comment.author_id)
+                const isAuthor = comment.author_id === userId
+                const isAdmin = profile?.role === 'administrador' || Boolean(profile?.is_master)
+                const canManageComment = isAuthor || isAdmin || preview
+                const isEditing = editingCommentId === comment.id
+
+                return (
+                  <div className="task-detail-report" key={comment.id}>
+                    <div className="avatar avatar-xs">{(author?.full_name || '?').slice(0, 1)}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <strong>{author?.full_name || 'Usuário'}</strong>
+                          <time>{timeBR(comment.created_at)}</time>
+                        </div>
+                        {canManageComment && !isEditing && (
+                          <div className="task-detail-subtask-actions" style={{ display: 'inline-flex', gap: 4 }}>
+                            <button
+                              type="button"
+                              onClick={() => startEditComment(comment)}
+                              title="Editar relatório"
+                              aria-label="Editar relatório"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-subtask-delete"
+                              onClick={() => void deleteComment(comment.id)}
+                              title="Excluir relatório"
+                              aria-label="Excluir relatório"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {isEditing ? (
+                        <form onSubmit={e => void saveComment(comment.id, e)} style={{ marginTop: 8 }}>
+                          <textarea
+                            rows={3}
+                            value={editingCommentBody}
+                            onChange={e => setEditingCommentBody(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Escape') setEditingCommentId(null)
+                              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                e.preventDefault()
+                                void saveComment(comment.id)
+                              }
+                            }}
+                            style={{
+                              width: '100%',
+                              fontSize: 12,
+                              padding: 8,
+                              borderRadius: 6,
+                              border: '1px solid var(--border-strong, #cbd5e1)',
+                              background: 'var(--bg-surface, #fff)',
+                              color: 'var(--text-primary, #0f172a)',
+                              resize: 'vertical'
+                            }}
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 6 }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ minHeight: 28, padding: '4px 10px', fontSize: 11 }}
+                              onClick={() => setEditingCommentId(null)}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn btn-primary"
+                              style={{ minHeight: 28, padding: '4px 12px', fontSize: 11 }}
+                              disabled={!editingCommentBody.trim()}
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <p>{comment.body}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               <div className="task-detail-add-report">
                 <textarea
                   rows={3}

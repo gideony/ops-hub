@@ -37,6 +37,33 @@ describe('conclusão baseada na etapa', () => {
     expect(buckets.week).toHaveLength(0)
   })
 
+  it('reconhece tarefas de quadros personalizados com etapas combinadas e respeita fallback de completed_at', () => {
+    const customBoardStages = [
+      { id: 'board-stage-todo', name: 'A Fazer', is_final: false, is_pause: false, board_id: 'b1', position: 1, color: '#3b82f6' },
+      { id: 'board-stage-done', name: 'Entregue', is_final: true, is_pause: false, board_id: 'b1', position: 2, color: '#10b981' },
+    ] as any[]
+    const allStages = [...stages, ...customBoardStages]
+
+    const taskInCustomBoardDone = task({
+      id: 't-custom-done',
+      board_id: 'b1',
+      stage_id: 'board-stage-done',
+      completed_at: new Date(2026, 10, 6, 12).toISOString(),
+    })
+    expect(completed(taskInCustomBoardDone, allStages)).toBe(true)
+
+    // Se a etapa customizada não estiver presente na lista mas houver completed_at (fallback seguro)
+    expect(completed(taskInCustomBoardDone, stages)).toBe(true)
+
+    const taskInCustomBoardDoing = task({
+      id: 't-custom-doing',
+      board_id: 'b1',
+      stage_id: 'board-stage-todo',
+      completed_at: null,
+    })
+    expect(completed(taskInCustomBoardDoing, allStages)).toBe(false)
+  })
+
   it('formata erros do Supabase/Postgrest sem exibir [object Object]', () => {
     expect(messageError(new Error('Falha de conexão'))).toBe('Falha de conexão')
     expect(messageError('Erro texto')).toBe('Erro texto')

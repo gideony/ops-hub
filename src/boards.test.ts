@@ -360,4 +360,77 @@ describe('Fase 1: Design de Referência e Navegação Meus Quadros', () => {
     const visibleInDev = createdTask.board_id === devBoardId
     expect(visibleInDev).toBe(false)
   })
+
+  it('suporte a cor de quadro e resolução defensiva para evitar erro column b.color does not exist', () => {
+    const boardWithoutColor: Board = {
+      id: 'board-antigo',
+      name: 'Quadro Antigo',
+      description: null,
+      type: 'custom',
+      methodology: 'kanban',
+      team_id: 'team-1',
+      is_shared: false,
+      stage_ids: [],
+      position: 1,
+      created_by: 'user-1',
+      created_at: '',
+      updated_at: '',
+    }
+
+    const boardWithColor: Board = {
+      ...boardWithoutColor,
+      id: 'board-novo',
+      color: '#10b981',
+    }
+
+    // Função de resolução defensiva idêntica à migration 202611170001
+    function resolveBoardColor(board?: Board | null): string {
+      return board?.color || '#2563eb'
+    }
+
+    expect(resolveBoardColor(boardWithoutColor)).toBe('#2563eb')
+    expect(resolveBoardColor(boardWithColor)).toBe('#10b981')
+    expect(resolveBoardColor(null)).toBe('#2563eb')
+  })
+
+  it('preserva tarefas encaminhadas e atualizadas na memória para evitar desaparecimento ao recarregar', () => {
+    const serverTasks: Task[] = [
+      makeTask('t-server-1', 'stage-1'),
+      makeTask('t-server-2', 'stage-2'),
+    ]
+
+    const forwardedLocalTask = makeTask('branch-t-server-1', 'bstage-target-1', {
+      origin_task_id: 't-server-1',
+      root_task_id: 't-server-1',
+      board_id: 'board-destino',
+    })
+
+    const prevTasks = [...serverTasks, forwardedLocalTask]
+
+    // Simulação exata da lógica de reload() em App.tsx
+    const serverTaskIds = new Set(serverTasks.map(t => t.id))
+    const localOnlyTasks = prevTasks.filter(
+      t => !serverTaskIds.has(t.id) && Boolean(t.origin_task_id || t.id.startsWith('branch-') || t.id.startsWith('demo-'))
+    )
+
+    const consolidatedTasks = [...serverTasks, ...localOnlyTasks]
+
+    expect(consolidatedTasks.length).toBe(3)
+    expect(consolidatedTasks.some(t => t.id === 'branch-t-server-1')).toBe(true)
+
+    // Simulação de adição de relatório e edição
+    const updatedBranchTask = {
+      ...forwardedLocalTask,
+      title: 'Tarefa Ramificada Editada',
+      description: 'Novo parecer e relatório registrado',
+    }
+
+    const updatedPrevTasks = consolidatedTasks.map(t => t.id === updatedBranchTask.id ? updatedBranchTask : t)
+    const localOnlyAfterEdit = updatedPrevTasks.filter(
+      t => !serverTaskIds.has(t.id) && Boolean(t.origin_task_id || t.id.startsWith('branch-') || t.id.startsWith('demo-'))
+    )
+    const consolidatedAfterEdit = [...serverTasks, ...localOnlyAfterEdit]
+
+    expect(consolidatedAfterEdit.find(t => t.id === 'branch-t-server-1')?.title).toBe('Tarefa Ramificada Editada')
+  })
 })

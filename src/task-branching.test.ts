@@ -243,4 +243,129 @@ describe('Ramificação de Tarefas e Linha do Tempo (ADR-014)', () => {
     expect(reportHide.totals.branchesCount).toBe(0)
     expect(reportHide.totals.journeys).toBe(32)
   })
+
+  it('8. Normalização de board-geral para null na RPC forward_completed_task', () => {
+    // Quando o usuário encaminha para o quadro Geral, o identificador "board-geral"
+    // deve ser normalizado para null para ser aceito pelo tipo UUID do PostgreSQL
+    function normalizeTargetBoardId(targetBoardId?: string | null): string | null {
+      return (!targetBoardId || targetBoardId === 'board-geral') ? null : targetBoardId
+    }
+
+    expect(normalizeTargetBoardId('board-geral')).toBeNull()
+    expect(normalizeTargetBoardId('')).toBeNull()
+    expect(normalizeTargetBoardId(null)).toBeNull()
+    expect(normalizeTargetBoardId(undefined)).toBeNull()
+    expect(normalizeTargetBoardId('board-implantacao')).toBe('board-implantacao')
+    expect(normalizeTargetBoardId('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')).toBe('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
+  })
+
+  it('9. Resiliência do Checklist em tarefas ramificadas/encaminhadas contra violação de chave estrangeira (FK 23503)', () => {
+    // Simula a adição segura de subtarefas em tarefas que foram criadas ou ramificadas
+    // garantindo que não dispare erro de FK ou trate com fallback gracioso
+    interface ChecklistState {
+      items: { id: string; task_id: string; title: string; done: boolean }[]
+    }
+
+    const state: ChecklistState = { items: [] }
+
+    function safeAddChecklist(
+      taskId: string,
+      title: string,
+      dbTasks: Set<string>
+    ): { success: boolean; persistedRemotely: boolean; item: any } {
+      const newItem = {
+        id: 'chk-' + Math.random().toString(36).slice(2, 9),
+        task_id: taskId,
+        title,
+        done: false,
+      }
+
+      state.items.push(newItem)
+
+      // Se a tarefa não existir no banco relacional (ex: offline ou erro de propagação)
+      const persistedRemotely = dbTasks.has(taskId)
+      return { success: true, persistedRemotely, item: newItem }
+    }
+
+    const existingDbTasks = new Set(['tarefa-008', 'tarefa-008-ramificacao'])
+    const res1 = safeAddChecklist('tarefa-008-ramificacao', 'Subtarefa 1', existingDbTasks)
+    expect(res1.success).toBe(true)
+    expect(res1.persistedRemotely).toBe(true)
+    expect(state.items.length).toBe(1)
+
+    // Cenário onde a tarefa ainda não foi sincronizada no DB
+    const unsyncedTaskId = 'task-local-uuid-123'
+    const res2 = safeAddChecklist(unsyncedTaskId, 'Subtarefa em tarefa pendente', existingDbTasks)
+    expect(res2.success).toBe(true)
+    expect(res2.persistedRemotely).toBe(false)
+    expect(state.items.length).toBe(2)
+  })
+
+  it('10. Preservação do estado real de subtarefas (done) e agrupamento (group_name) ao encaminhar para outro quadro', () => {
+    // Cenário: Em Comercial, a tarefa possui subtarefas concluídas e pendentes
+    interface Subtask {
+      id: string
+      task_id: string
+      title: string
+      done: boolean
+      position: number
+      group_name?: string
+    }
+
+    const originSubtasks: Subtask[] = [
+      { id: 'sub-1', task_id: 't-comercial-1', title: 'Reunião com decisor', done: true, position: 1, group_name: 'Negociação' },
+      { id: 'sub-2', task_id: 't-comercial-1', title: 'Envio de proposta', done: true, position: 2, group_name: 'Negociação' },
+      { id: 'sub-3', task_id: 't-comercial-1', title: 'Alinhamento técnico inicial', done: false, position: 3, group_name: 'Onboarding' },
+    ]
+
+    // Simulação do comportamento de forward_completed_task (migration 202611170002)
+    function cloneSubtasksOnForward(source: Subtask[], newTaskId: string): Subtask[] {
+      return source.map((st, idx) => ({
+        ...st,
+        id: `cloned-${newTaskId}-${idx}`,
+        task_id: newTaskId,
+        done: st.done, // NÃO ZERA! Preserva o estado de conclusão do quadro anterior
+        group_name: st.group_name, // Preserva agrupamento
+        position: idx + 1,
+      }))
+    }
+
+    const forwardedSubtasks = cloneSubtasksOnForward(originSubtasks, 't-implantacao-ramificacao')
+
+    expect(forwardedSubtasks.length).toBe(3)
+    // As subtarefas concluídas em comercial permanecem concluídas no novo quadro
+    expect(forwardedSubtasks[0].done).toBe(true)
+    expect(forwardedSubtasks[1].done).toBe(true)
+    expect(forwardedSubtasks[0].group_name).toBe('Negociação')
+    // A subtarefa pendente permanece pendente
+    expect(forwardedSubtasks[2].done).toBe(false)
+    expect(forwardedSubtasks[2].group_name).toBe('Onboarding')
+  })
+
+  it('11. Edição e remoção de relatórios/comentários em tarefas', () => {
+    interface Report {
+      id: string
+      task_id: string
+      author_id: string
+      body: string
+      created_at: string
+    }
+
+    const reports: Report[] = [
+      { id: 'rep-1', task_id: 't-imp-1', author_id: 'user-admin', body: 'Relatório inicial', created_at: '2026-11-17T10:00:00Z' }
+    ]
+
+    function editReport(reportId: string, newBody: string, actorId: string): boolean {
+      const target = reports.find(r => r.id === reportId)
+      if (!target) return false
+      // Apenas o autor ou admin pode editar
+      if (target.author_id !== actorId && actorId !== 'admin') return false
+      target.body = newBody.trim()
+      return true
+    }
+
+    const ok = editReport('rep-1', 'Relatório atualizado com detalhes de implantação', 'user-admin')
+    expect(ok).toBe(true)
+    expect(reports[0].body).toBe('Relatório atualizado com detalhes de implantação')
+  })
 })

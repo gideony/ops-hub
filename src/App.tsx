@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Activity, ArrowDown, ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, CircleHelp, ClipboardList, FolderKanban, GitBranch, Layers, LayoutDashboard, List, Lock, LockKeyhole, LogOut, Menu, MessageCircle, Moon, MoreHorizontal, Paperclip, Plus, Search, Send, Settings2, ShieldCheck, Sun, Tags, Trash2, Users, X, Zap } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { supabase, configured, completed, dateBR, timeBR, todayISO, taskBuckets, messageError, unreadMessageCounts } from './lib'
+import { supabase, configured, completed, dateBR, timeBR, todayISO, taskBuckets, messageError, unreadMessageCounts, isNetworkError } from './lib'
 import type { Attachment, Board, BoardStage, Channel, Checklist, ChecklistTemplateGroup, ChecklistTemplateItem, Client, ClientRegistrationLink, ClientRegistrationSubmission, Member, Message, Profile, Read, Sprint, Stage, Tag, Task, Team, Template, Transition } from './lib'
 import { demoData, initialDemoChecklists } from './demo'
 import { clearUserDrafts } from './drafts'
@@ -39,6 +39,7 @@ import {
 import { GeneralAccordionView, GeneralLateralView, GeneralToolbar } from './GeneralViews'
 import Dashboard from './Dashboard'
 import './dashboard.css'
+import PasswordInput from './PasswordInput'
 
 const ReportsPage = lazy(() => import('./ReportsPage'))
 const ClientsPage = lazy(() => import('./AdminPages').then(m => ({ default: m.ClientsPage })))
@@ -140,6 +141,7 @@ export default function App() {
   const [taskTab, setTaskTab] = useState<'tarefas'|'fluxos'|'templates'|'tags'>(()=>{const value=demoMode?new URLSearchParams(window.location.search).get('aba'):null;return value==='fluxos'||value==='templates'||value==='tags'?value:'tarefas'})
   const [query, setQuery] = useState('')
   const [completedQuery, setCompletedQuery] = useState('')
+  const [completedBoardFilter, setCompletedBoardFilter] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [clientFilter, setClientFilter] = useState('')
@@ -436,6 +438,22 @@ export default function App() {
   const canMaster = demoMode || Boolean(profile?.is_master)
   const canCreateBoard = Boolean(canAdmin || (demoMode && (!profile || profile.role === 'administrador')) || data.members.some(m => m.user_id === profile?.id && m.active && m.is_manager))
 
+  const allStages: (Stage & { board_id?: string })[] = useMemo(() => {
+    return [
+      ...data.stages,
+      ...data.boardStages.map(bs => ({
+        id: bs.id,
+        name: bs.name,
+        position: bs.position,
+        color: bs.color,
+        is_final: bs.is_final,
+        is_pause: false,
+        wip_limit: bs.wip_limit ?? null,
+        board_id: bs.board_id,
+      })),
+    ]
+  }, [data.stages, data.boardStages])
+
   const canonicalGeneralBoard: Board = useMemo(() => ({
     id: 'board-geral',
     name: 'Geral',
@@ -605,8 +623,8 @@ export default function App() {
       && (!teamFilter || t.team_id === teamFilter) && (!assigneeFilter || t.assignee_id === assigneeFilter)
       && (!clientFilter || t.client_id === clientFilter) && (!stageFilter || t.stage_id === stageFilter)
       && (!priorityFilter || t.priority === priorityFilter)
-      && (!dueFilter || (dueFilter === 'atrasadas' ? Boolean(t.due_at && t.due_at < now && !completed(t,data.stages)) : dueFilter === 'sem_prazo' ? !t.due_at : Boolean(t.due_at && t.due_at >= now)))
-  }), [data, activeBoard, taskView, activeSprint, dashboardFilter, dashboard, query, teamFilter, assigneeFilter, clientFilter, stageFilter, priorityFilter, dueFilter, now])
+      && (!dueFilter || (dueFilter === 'atrasadas' ? Boolean(t.due_at && t.due_at < now && !completed(t, allStages)) : dueFilter === 'sem_prazo' ? !t.due_at : Boolean(t.due_at && t.due_at >= now)))
+  }), [data, activeBoard, taskView, activeSprint, dashboardFilter, dashboard, query, teamFilter, assigneeFilter, clientFilter, stageFilter, priorityFilter, dueFilter, now, allStages])
 
   const globallyFilteredTasks = useMemo(() => data.tasks.filter(t => {
     if (dashboardFilter && !dashboard[dashboardFilter].some(x => x.id === t.id)) return false
@@ -615,8 +633,8 @@ export default function App() {
       && (!assigneeFilter || t.assignee_id === assigneeFilter)
       && (!clientFilter || t.client_id === clientFilter)
       && (!priorityFilter || t.priority === priorityFilter)
-      && (!dueFilter || (dueFilter === 'atrasadas' ? Boolean(t.due_at && t.due_at < now && !completed(t, data.stages)) : dueFilter === 'sem_prazo' ? !t.due_at : Boolean(t.due_at && t.due_at >= now)))
-  }), [data.tasks, data.stages, dashboardFilter, dashboard, query, teamFilter, assigneeFilter, clientFilter, priorityFilter, dueFilter, now])
+      && (!dueFilter || (dueFilter === 'atrasadas' ? Boolean(t.due_at && t.due_at < now && !completed(t, allStages)) : dueFilter === 'sem_prazo' ? !t.due_at : Boolean(t.due_at && t.due_at >= now)))
+  }), [data.tasks, allStages, dashboardFilter, dashboard, query, teamFilter, assigneeFilter, clientFilter, priorityFilter, dueFilter, now])
 
   const openMetric = (filter: Exclude<DashboardFilter,null>) => { setDashboardFilter(filter); setTaskTab('tarefas'); setPage('tasks'); setTaskView('lista') }
 
@@ -663,8 +681,9 @@ export default function App() {
             ...c,
             id: crypto.randomUUID(),
             task_id: newBranchId,
-            done: false,
-            position: i + 1
+            done: c.done,
+            position: i + 1,
+            group_name: c.group_name
           }))
           setDemoChecklists(prev => ({ ...prev, [newBranchId]: clonedChecklists }))
         }
@@ -699,15 +718,20 @@ export default function App() {
     }
 
     // Modo Supabase com resiliência
+    const normTargetBoardId = (!targetBoardId || targetBoardId === 'board-geral') ? null : targetBoardId
+
     try {
       for (const t of tasksToForward) {
         const { error } = await supabase.rpc('forward_completed_task', {
           p_task_id: t.id,
-          p_target_board_id: targetBoardId,
+          p_target_board_id: normTargetBoardId,
           p_target_stage_id: targetStageId,
           p_target_team_id: targetTeamId || null
         })
-        if (error) throw error
+        if (error) {
+          console.error('Erro na RPC forward_completed_task:', error)
+          throw error
+        }
       }
 
       await reload()
@@ -715,72 +739,78 @@ export default function App() {
         ? `${tasksToForward.length} tarefas encaminhadas com sucesso!`
         : 'Tarefa concluída e encaminhada com sucesso!'
       )
-    } catch {
-      // Fallback gracioso de rede: aplica localmente a ramificação
-      const now = new Date().toISOString()
-      const newBranches: Task[] = []
-      const updatedOriginals: Task[] = []
+    } catch (err: any) {
+      console.error('Falha ao encaminhar tarefa:', err)
+      if (isNetworkError(err)) {
+        // Fallback gracioso de rede: aplica localmente a ramificação apenas em falha de conexão real
+        const now = new Date().toISOString()
+        const newBranches: Task[] = []
+        const updatedOriginals: Task[] = []
 
-      for (const t of tasksToForward) {
-        const rootId = t.root_task_id || t.id
-        const newBranchId = crypto.randomUUID()
-        const branch: Task = {
-          id: newBranchId,
-          title: t.title,
-          description: t.description,
-          team_id: targetTeamId || t.team_id,
-          assignee_id: null,
-          client_id: t.client_id,
-          stage_id: targetStageId,
-          priority: t.priority,
-          due_at: null,
-          tags: [...t.tags],
-          completed_at: null,
-          created_by: session?.user?.id || 'demo-user',
-          created_at: now,
-          updated_at: now,
-          board_id: targetBoardId,
-          sprint_id: null,
-          origin_task_id: t.id,
-          root_task_id: rootId
+        for (const t of tasksToForward) {
+          const rootId = t.root_task_id || t.id
+          const newBranchId = crypto.randomUUID()
+          const branch: Task = {
+            id: newBranchId,
+            title: t.title,
+            description: t.description,
+            team_id: targetTeamId || t.team_id,
+            assignee_id: null,
+            client_id: t.client_id,
+            stage_id: targetStageId,
+            priority: t.priority,
+            due_at: null,
+            tags: [...t.tags],
+            completed_at: null,
+            created_by: session?.user?.id || 'demo-user',
+            created_at: now,
+            updated_at: now,
+            board_id: normTargetBoardId,
+            sprint_id: null,
+            origin_task_id: t.id,
+            root_task_id: rootId
+          }
+          newBranches.push(branch)
+          const origChecklists = demoChecklists[t.id] || []
+          if (origChecklists.length > 0) {
+            const clonedChecklists = origChecklists.map((c, i) => ({
+              ...c,
+              id: crypto.randomUUID(),
+              task_id: newBranchId,
+              done: c.done,
+              position: i + 1,
+              group_name: c.group_name
+            }))
+            setDemoChecklists(prev => ({ ...prev, [newBranchId]: clonedChecklists }))
+          }
+          updatedOriginals.push({
+            ...t,
+            forwarded_at: now,
+            forwarded_by: session?.user?.id || 'demo-user',
+            completed_at: t.completed_at || now,
+            root_task_id: rootId,
+            updated_at: now
+          })
         }
-        newBranches.push(branch)
-        const origChecklists = demoChecklists[t.id] || []
-        if (origChecklists.length > 0) {
-          const clonedChecklists = origChecklists.map((c, i) => ({
-            ...c,
-            id: crypto.randomUUID(),
-            task_id: newBranchId,
-            done: false,
-            position: i + 1
-          }))
-          setDemoChecklists(prev => ({ ...prev, [newBranchId]: clonedChecklists }))
-        }
-        updatedOriginals.push({
-          ...t,
-          forwarded_at: now,
-          forwarded_by: session?.user?.id || 'demo-user',
-          completed_at: t.completed_at || now,
-          root_task_id: rootId,
-          updated_at: now
+
+        setData(prev => {
+          const filtered = prev.tasks.map(item => {
+            const match = updatedOriginals.find(o => o.id === item.id)
+            return match || item
+          })
+          return {
+            ...prev,
+            tasks: [...filtered, ...newBranches]
+          }
         })
+
+        flash(tasksToForward.length > 1
+          ? `${tasksToForward.length} tarefas encaminhadas localmente (conexão indisponível)`
+          : 'Tarefa concluída e encaminhada localmente (conexão indisponível)'
+        )
+      } else {
+        setError(messageError(err) || 'Erro ao encaminhar tarefa no banco de dados. Verifique a etapa e permissões do quadro.')
       }
-
-      setData(prev => {
-        const filtered = prev.tasks.map(item => {
-          const match = updatedOriginals.find(o => o.id === item.id)
-          return match || item
-        })
-        return {
-          ...prev,
-          tasks: [...filtered, ...newBranches]
-        }
-      })
-
-      flash(tasksToForward.length > 1
-        ? `${tasksToForward.length} tarefas encaminhadas localmente (conexão indisponível)`
-        : 'Tarefa concluída e encaminhada localmente (conexão indisponível)'
-      )
     } finally {
       setForwardingTask(null)
       setForwardingTasks(null)
@@ -2088,8 +2118,83 @@ export default function App() {
     </section>
   }
   const renderCompleted = () => {
-    const finished = data.tasks.filter(t=>completed(t,data.stages) && (!completedQuery || t.title.toLocaleLowerCase('pt-BR').includes(completedQuery.toLocaleLowerCase('pt-BR'))))
-    return <section className="content content-wide completed-content"><div className="completed-heading"><div><h2>Tarefas concluídas</h2><p>Entregas finalizadas e histórico de conclusão.</p></div><span>{finished.length} concluídas</span></div><div className="task-tools"><div className="search"><Search size={17}/><input placeholder="Buscar tarefas concluídas..." value={completedQuery} onChange={e=>setCompletedQuery(e.target.value)}/></div></div><TaskList tasks={finished} data={data} onTask={setSelectedTask} person={person} team={team} client={client} moveTask={moveTask} deleteTask={deleteTask}/>{hasMoreTasks&&<div className="task-pagination"><button type="button" className="btn btn-secondary" onClick={()=>void loadMoreTasks()} disabled={loadingMoreTasks}><ArrowDown size={14}/> {loadingMoreTasks?'Carregando mais tarefas...':'Carregar mais tarefas'}</button></div>}</section>
+    const finished = data.tasks.filter(t => {
+      const isDone = completed(t, allStages) || Boolean(t.completed_at)
+      if (!isDone) return false
+
+      if (completedBoardFilter) {
+        if (completedBoardFilter === 'board-geral') {
+          if (t.board_id && t.board_id !== 'board-geral') return false
+        } else {
+          if (t.board_id !== completedBoardFilter) return false
+        }
+      }
+
+      if (completedQuery) {
+        const matchesQuery = `${t.title} ${t.description} ${t.tags.join(' ')}`
+          .toLocaleLowerCase('pt-BR')
+          .includes(completedQuery.toLocaleLowerCase('pt-BR'))
+        if (!matchesQuery) return false
+      }
+
+      return true
+    })
+
+    return (
+      <section className="content content-wide completed-content">
+        <div className="completed-heading">
+          <div>
+            <h2>Tarefas concluídas</h2>
+            <p>Entregas finalizadas e histórico de conclusão em todos os quadros.</p>
+          </div>
+          <span>{finished.length} concluídas</span>
+        </div>
+        <div className="task-tools">
+          <div className="search">
+            <Search size={17} />
+            <input
+              placeholder="Buscar tarefas concluídas..."
+              value={completedQuery}
+              onChange={e => setCompletedQuery(e.target.value)}
+            />
+          </div>
+          <select
+            aria-label="Filtrar por quadro"
+            value={completedBoardFilter}
+            onChange={e => setCompletedBoardFilter(e.target.value)}
+          >
+            <option value="">Todos os quadros</option>
+            <option value="board-geral">Geral (Canônico)</option>
+            {data.boards.filter(b => b.id !== 'board-geral').map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+        <TaskList
+          tasks={finished}
+          data={data}
+          stages={allStages}
+          onTask={setSelectedTask}
+          person={person}
+          team={team}
+          client={client}
+          moveTask={moveTask}
+          deleteTask={deleteTask}
+        />
+        {hasMoreTasks && (
+          <div className="task-pagination">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void loadMoreTasks()}
+              disabled={loadingMoreTasks}
+            >
+              <ArrowDown size={14} /> {loadingMoreTasks ? 'Carregando mais tarefas...' : 'Carregar mais tarefas'}
+            </button>
+          </div>
+        )}
+      </section>
+    )
   }
 
   const registrationToken = useMemo(() => {
@@ -2284,21 +2389,29 @@ function Login({preview,onPreviewLogin}:{preview:boolean;onPreviewLogin:()=>void
     else setForgotSent(true)
     setBusy(false)
   }
-  return <div className="login-screen"><div className="login-brand"><div className="brand-mark">S</div><strong>somax<span>hub</span></strong></div><div className="login-panel"><div className="eyebrow">BEM-VINDO DE VOLTA</div><h1>Seu trabalho flui melhor aqui.</h1><p>{preview?'Explore o painel com uma conta fictícia de administrador master.':'Entre com a conta criada pela Somax.'}</p>{preview?<div className="login-demo"><strong>Prévia local</strong><p>Sem autenticação real ou dados persistidos. Acesso de demonstração.</p><Button onClick={onPreviewLogin} className="full">Entrar na prévia <ArrowRight size={17}/></Button></div>:<form onSubmit={submit}><Field label="E-mail"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@somax.com.br" autoComplete="username"/></Field><Field label="Senha"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Sua senha" autoComplete="current-password"/></Field>{!preview && <div className="forgot-link">{forgotSent ? <span>E-mail de recuperação enviado!</span> : <button type="button" onClick={() => void forgotPassword()} disabled={!email.trim() || busy}>Esqueci minha senha</button>}</div>}{error && <div className="form-error">{error}</div>}<Button type="submit" disabled={busy} className="full">{busy?'Entrando...':'Entrar no hub'} <ArrowRight size={17}/></Button></form>}<small>{preview?'Configure o Supabase para usar sua conta real.':'Acesso restrito a usuários cadastrados.'}</small></div><div className="login-decoration"><div className="decoration-card"><span>✳  SOMAX HUB</span><h2>Projetos claros.<br/>Conversas em dia.<br/>Equipe conectada.</h2><div className="decoration-circles"><i/><i/><i/></div></div></div></div>
+  return <div className="login-screen"><div className="login-brand"><div className="brand-mark">S</div><strong>somax<span>hub</span></strong></div><div className="login-panel"><div className="eyebrow">BEM-VINDO DE VOLTA</div><h1>Seu trabalho flui melhor aqui.</h1><p>{preview?'Explore o painel com uma conta fictícia de administrador master.':'Entre com a conta criada pela Somax.'}</p>{preview?<div className="login-demo"><strong>Prévia local</strong><p>Sem autenticação real ou dados persistidos. Acesso de demonstração.</p><Button onClick={onPreviewLogin} className="full">Entrar na prévia <ArrowRight size={17}/></Button></div>:<form onSubmit={submit}><Field label="E-mail"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@somax.com.br" autoComplete="username"/></Field><Field label="Senha"><PasswordInput required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Sua senha" autoComplete="current-password"/></Field>{!preview && <div className="forgot-link">{forgotSent ? <span>E-mail de recuperação enviado!</span> : <button type="button" onClick={() => void forgotPassword()} disabled={!email.trim() || busy}>Esqueci minha senha</button>}</div>}{error && <div className="form-error">{error}</div>}<Button type="submit" disabled={busy} className="full">{busy?'Entrando...':'Entrar no hub'} <ArrowRight size={17}/></Button></form>}<small>{preview?'Configure o Supabase para usar sua conta real.':'Acesso restrito a usuários cadastrados.'}</small></div><div className="login-decoration"><div className="decoration-card"><span>✳  SOMAX HUB</span><h2>Projetos claros.<br/>Conversas em dia.<br/>Equipe conectada.</h2><div className="decoration-circles"><i/><i/><i/></div></div></div></div>
 }
 function SetPassword() {
   const [password,setPassword]=useState(''); const [confirm,setConfirm]=useState(''); const [error,setError]=useState(''); const [busy,setBusy]=useState(false)
   async function submit(e:FormEvent){e.preventDefault();if(password!==confirm){setError('As senhas não coincidem.');return}if(password.length<8){setError('Use ao menos 8 caracteres.');return}setBusy(true);const {error}=await supabase.auth.updateUser({password,data:{must_set_password:false}});if(error)setError(error.message);setBusy(false)}
-  return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">S</div><h1>Ative sua conta</h1><p>Troque a senha temporária recebida da Somax para continuar.</p><form className="stack-form" onSubmit={e=>void submit(e)}><Field label="Nova senha"><input type="password" required minLength={8} value={password} onChange={e=>setPassword(e.target.value)}/></Field><Field label="Confirmar senha"><input type="password" required value={confirm} onChange={e=>setConfirm(e.target.value)}/></Field>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Salvando...':'Ativar conta'}</Button></form></div></div>
+  return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">S</div><h1>Ative sua conta</h1><p>Troque a senha temporária recebida da Somax para continuar.</p><form className="stack-form" onSubmit={e=>void submit(e)}><Field label="Nova senha"><PasswordInput required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></Field><Field label="Confirmar senha"><PasswordInput required value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password"/></Field>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Salvando...':'Ativar conta'}</Button></form></div></div>
 }
 
 
 
-function StageMenu({task,data,stages,moveTask,canFreeMove=false}:{task:Task;data:Data;stages?:(Stage & { wip_limit?: number | null })[];moveTask:(task:Task,id:string)=>Promise<void>;canFreeMove?:boolean}) {
+function StageMenu({task,data,stages,moveTask,canFreeMove=false}:{task:Task;data:Data;stages?:(Stage & { wip_limit?: number | null; board_id?: string })[];moveTask:(task:Task,id:string)=>Promise<void>;canFreeMove?:boolean}) {
   const currentStages = stages || data.stages
+  const boardSpecificStages = currentStages.filter(s => {
+    if (task.board_id) {
+      return (s as { board_id?: string }).board_id === task.board_id
+    }
+    return !(s as { board_id?: string }).board_id
+  })
+  const stagesToUse = boardSpecificStages.length > 0 ? boardSpecificStages : currentStages
+
   const allowed = canFreeMove
-    ? currentStages.filter(s=>s.id!==task.stage_id).sort((a,b)=>a.position-b.position)
-    : data.transitions.filter(t=>t.from_stage_id===task.stage_id).map(t=>currentStages.find(s=>s.id===t.to_stage_id)).filter((s):s is Stage=>Boolean(s))
+    ? stagesToUse.filter(s=>s.id!==task.stage_id).sort((a,b)=>a.position-b.position)
+    : data.transitions.filter(t=>t.from_stage_id===task.stage_id).map(t=>stagesToUse.find(s=>s.id===t.to_stage_id)).filter((s):s is (Stage & { wip_limit?: number | null; board_id?: string })=>Boolean(s))
   return <select className="stage-menu" aria-label={`Mover ${task.title}`} value="" onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();void moveTask(task,e.target.value)}}><option value="">Mover...</option>{allowed.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
 }
 function TaskCard({
@@ -2583,7 +2696,7 @@ function Kanban({
     </div>
   })}</div>
 }
-function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTask,canFreeMove=false}:{tasks:Task[];data:Data;stages?:(Stage & { wip_limit?: number | null })[];onTask:(t:Task)=>void;person:(id?:string|null)=>Profile|undefined;team:(id:string)=>Team|undefined;client:(id?:string|null)=>Client|undefined;moveTask:(t:Task,id:string)=>Promise<void>;deleteTask?:(t:Task)=>Promise<void>;canFreeMove?:boolean}) {
+function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTask,canFreeMove=false}:{tasks:Task[];data:Data;stages?:(Stage & { wip_limit?: number | null; board_id?: string })[];onTask:(t:Task)=>void;person:(id?:string|null)=>Profile|undefined;team:(id:string)=>Team|undefined;client:(id?:string|null)=>Client|undefined;moveTask:(t:Task,id:string)=>Promise<void>;deleteTask?:(t:Task)=>Promise<void>;canFreeMove?:boolean}) {
   const currentStages = stages || data.stages
   return (
     <div className="table-wrap">
@@ -2591,6 +2704,7 @@ function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTa
         <thead>
           <tr>
             <th>Tarefa</th>
+            <th>Quadro</th>
             <th>Equipe</th>
             <th>Responsável</th>
             <th>Cliente</th>
@@ -2658,6 +2772,12 @@ function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTa
                     </span>
                     <small>#{t.id.slice(0,6).toUpperCase()}</small>
                   </button>
+                </td>
+                <td>
+                  <span className="team-tiny">
+                    <FolderKanban size={13} style={{ opacity: 0.7 }} />
+                    {t.board_id ? (data.boards.find(b => b.id === t.board_id)?.name || 'Geral') : 'Geral'}
+                  </span>
                 </td>
                 <td><span className="team-tiny"><i style={{background:team(t.team_id)?.color}}/>{team(t.team_id)?.name}</span></td>
                 <td>{person(t.assignee_id)?.full_name || '—'}</td>
