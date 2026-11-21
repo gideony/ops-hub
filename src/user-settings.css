@@ -1,37 +1,581 @@
-.flow-toolbar{display:flex;justify-content:flex-end;margin:0 0 12px}
-.account-settings{max-width:1150px}
-.account-intro{display:flex;align-items:center;gap:16px;padding:23px 25px;margin-bottom:20px;background:#fff;border:1px solid #e9edf4;border-radius:12px}
-.account-avatar{width:62px;height:62px;flex:none;border-radius:50%;display:grid;place-items:center;background:#e7e3ff;color:#655bd1;font-size:20px;font-weight:800}
-.account-intro h2{font-size:17px;margin:0 0 4px}
-.account-intro p{font-size:11px;color:#768398;margin:0 0 8px}
-.account-role{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:#f0eeff;border-radius:5px;color:#695fd0;font-size:10px;font-weight:700}
-.account-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:18px;align-items:start}
-.account-side{display:grid;gap:18px}
-.account-panel{background:#fff;border:1px solid #e9edf4;border-radius:12px;overflow:hidden}
-.account-panel-heading{display:flex;align-items:flex-start;gap:11px;padding:19px 22px;border-bottom:1px solid #edf0f5;color:#7268d7}
-.account-panel-heading h2{font-size:13px;color:#252d3d;margin:0 0 4px}
-.account-panel-heading p{font-size:10px;color:#8b97a8;margin:0}
-.account-form{display:grid;gap:15px;padding:21px 22px}
-.account-form .field{font-size:10px}
-.account-form .field input{font-size:11px}
-.account-form .field input[readonly]{background:#f7f8fb;color:#798496;cursor:default}
-.account-form .btn{justify-self:start;margin-top:1px}
-.account-hint{font-size:10px;line-height:1.5;color:#8995a6;margin:0}
-.account-appearance{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:20px 22px}
-.account-appearance button{display:flex;align-items:center;gap:8px;border:1px solid #e0e5ee;border-radius:8px;background:#fff;color:#5e687b;padding:11px;font-size:11px;font-weight:650}
-.account-appearance button svg:last-child{margin-left:auto}
-.account-appearance button.selected{border-color:#8278e4;background:#f4f2ff;color:#6459ce}
-.account-access{display:grid;gap:13px;padding:19px 22px}
-.account-access>div{display:grid;gap:5px}
-.account-access span{font-size:10px;color:#919cab}
-.account-access strong{font-size:11px;font-weight:650}
-:root[data-theme='dark'] .account-intro,:root[data-theme='dark'] .account-panel{background:var(--dark-panel);border-color:var(--dark-border)}
-:root[data-theme='dark'] .account-panel-heading{border-color:var(--dark-border);color:#a5acff}
-:root[data-theme='dark'] .account-intro h2,:root[data-theme='dark'] .account-panel-heading h2,:root[data-theme='dark'] .account-access strong{color:var(--dark-text)}
-:root[data-theme='dark'] .account-intro p,:root[data-theme='dark'] .account-panel-heading p,:root[data-theme='dark'] .account-hint,:root[data-theme='dark'] .account-access span{color:var(--dark-muted)}
-:root[data-theme='dark'] .account-avatar,:root[data-theme='dark'] .account-role{background:#2d2b50;color:#c2c6ff}
-:root[data-theme='dark'] .account-form .field input[readonly]{background:#19191d;color:#a1a1aa}
-:root[data-theme='dark'] .account-appearance button{background:var(--dark-field);border-color:#3b3b43;color:var(--dark-text)}
-:root[data-theme='dark'] .account-appearance button.selected{background:#2c2c4d;border-color:#7d80e6;color:#cacdff}
-@media(max-width:800px){.account-grid{grid-template-columns:1fr}}
-@media(max-width:450px){.account-intro{padding:18px}.account-panel-heading{padding:17px}.account-form,.account-appearance,.account-access{padding:17px}.account-avatar{width:51px;height:51px;font-size:16px}.account-appearance{grid-template-columns:1fr}}
+/* ==============================================================================
+   SOMAX HUB — CONFIGURAÇÕES E PREFERÊNCIAS DO USUÁRIO
+   Totalmente compatível com tokens de tema (WCAG AA >= 4.5:1)
+   ============================================================================== */
+
+.account-settings {
+  max-width: 1150px;
+  width: 100%;
+}
+
+/* CARTÃO DE INTRODUÇÃO / PERFIL CORPORATIVO */
+.account-intro {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.account-avatar {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-subtle);
+  color: var(--primary-main);
+  font-size: 20px;
+  font-weight: 800;
+  border: 2px solid var(--border-main);
+}
+
+.account-intro-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.account-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.account-intro h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.account-intro p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.account-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--chip-purple-bg);
+  border: 1px solid var(--chip-purple-border);
+  border-radius: 6px;
+  color: var(--chip-purple-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.account-role.master {
+  background: var(--chip-warning-bg);
+  border-color: var(--chip-warning-border);
+  color: var(--chip-warning-text);
+}
+
+.account-teams-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.teams-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.account-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.account-teams-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* NAVEGAÇÃO ENTRE SUBABAS */
+.settings-tabs-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-main);
+  padding-bottom: 10px;
+  overflow-x: auto;
+}
+
+.settings-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-main);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.settings-tab-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.settings-tab-btn.active {
+  border-color: var(--primary-main);
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+/* GRID PRINCIPAL */
+.account-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.account-side {
+  display: grid;
+  gap: 18px;
+}
+
+.account-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.account-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--primary-main);
+}
+
+.account-panel-heading h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+.account-panel-heading p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* FORMULÁRIO */
+.account-form {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.account-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.account-form .field input {
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-main);
+  background: var(--bg-field);
+  color: var(--text-primary);
+}
+
+.account-form .field input:focus {
+  border-color: var(--border-focus);
+  outline: none;
+}
+
+.account-form .field input[readonly] {
+  background: var(--bg-surface-subtle);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.account-form .btn {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.account-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* PREFERÊNCIAS (BODY) */
+.account-pref-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pref-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pref-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.pref-item-info strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.pref-item-info p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+  line-height: 1.35;
+}
+
+/* GRUPO DE BOTÕES SEGMENTADOS */
+.pref-segment-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pref-segment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-main);
+  background: var(--bg-surface-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pref-segment-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.pref-segment-btn.active {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+  color: var(--primary-text);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--primary-main);
+}
+
+/* INTERRUPTOR SWITCH */
+.pref-switch-wrap {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.pref-switch-wrap input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pref-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-strong);
+  transition: 0.2s;
+  border-radius: 24px;
+}
+
+.pref-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
+  transition: 0.2s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.pref-switch-wrap input:checked + .pref-slider {
+  background-color: var(--primary-main);
+}
+
+.pref-switch-wrap input:checked + .pref-slider:before {
+  transform: translateX(20px);
+}
+
+.btn-test-sound {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-test-sound:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.btn-sm {
+  font-size: 11px !important;
+  padding: 5px 10px !important;
+}
+
+/* DICAS DE PRODUTIVIDADE */
+.account-pref-tips {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.account-pref-tips p {
+  margin: 0;
+}
+
+.account-pref-tips strong {
+  color: var(--text-primary);
+}
+
+/* ACESSO */
+.account-access {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.account-access > div {
+  display: grid;
+  gap: 3px;
+}
+
+.account-access span {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.account-access strong {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+/* SELETOR DE TEMA */
+.account-appearance {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 18px 20px;
+}
+
+.account-appearance button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.account-appearance button:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.account-appearance button svg:last-child {
+  margin-left: auto;
+}
+
+.account-appearance button.selected {
+  border-color: var(--primary-main);
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+}
+
+/* ==============================================================================
+   TEMA ESCURO (:root[data-theme='dark'])
+   ============================================================================== */
+:root[data-theme='dark'] .account-intro,
+:root[data-theme='dark'] .account-panel {
+  background: var(--modal-bg);
+  border-color: var(--border-main);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .account-panel-heading {
+  border-bottom-color: var(--border-main);
+  color: var(--color-primary-base);
+}
+
+:root[data-theme='dark'] .account-avatar {
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  border-color: var(--border-strong);
+}
+
+:root[data-theme='dark'] .settings-tab-btn {
+  background: var(--bg-field);
+  border-color: var(--border-main);
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .settings-tab-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .settings-tab-btn.active {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+  color: var(--primary-text);
+}
+
+:root[data-theme='dark'] .pref-segment-btn {
+  background: var(--bg-field);
+  border-color: var(--border-main);
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .pref-segment-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .pref-segment-btn.active {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+  color: var(--primary-text);
+}
+
+:root[data-theme='dark'] .account-form .field input {
+  background: var(--bg-field);
+  border-color: var(--border-main);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .account-form .field input[readonly] {
+  background: var(--bg-surface-subtle);
+  color: var(--text-muted);
+}
+
+:root[data-theme='dark'] .account-appearance button {
+  background: var(--bg-field);
+  border-color: var(--border-main);
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .account-appearance button.selected {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+  color: var(--primary-text);
+}
+
+:root[data-theme='dark'] .btn-test-sound {
+  background: var(--bg-field);
+  border-color: var(--border-main);
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .btn-test-sound:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+@media (max-width: 800px) {
+  .account-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 500px) {
+  .account-intro {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .account-appearance {
+    grid-template-columns: 1fr;
+  }
+  .pref-segment-group {
+    flex-direction: column;
+  }
+}

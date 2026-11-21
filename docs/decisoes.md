@@ -672,3 +672,409 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
   - Alta resiliência da aplicação: opera com fidelidade e sem perda de dados mesmo antes da aplicação das migrations no banco remoto.
   - Suíte de testes automatizados expandida para **220 testes** aprovados com 100% de sucesso no Vitest.
   - Compilação de produção limpa (`npm run build`) concluída com código 0 e sem avisos de tipagem.
+
+---
+
+## ADR-022: Unificação Canônica da Definição de Tarefas Concluídas, Resolução de Etapas e Concordância Entre Visões
+
+- **Data:** 2026-11-17
+- **Status:** Aprovado
+- **Contexto:**
+  A aba "Tarefas Concluídas" consultava apenas `data.stages` (etapas canônicas do Geral), ocultando tarefas concluídas pertencentes a quadros customizados (`data.boardStages`). Além disso, havia o risco de divergência entre a função `completed` (`src/lib.ts`) e os módulos de relatórios (`computeTaskStatus`/`resolveTaskStage` em `src/reports.ts`), bem como a necessidade de assegurar que tarefas reabertas tenham `completed_at` limpo tanto no front-end quanto no servidor e que o fallback por `completed_at` atue exclusivamente quando uma etapa for órfã/desconhecida.
+- **Decisões Técnicas:**
+  1. **Fonte Única de Verdade Canônica (`src/lib.ts` e `src/reports.ts`):**
+     - O tipo `StageDisplayInfo` e a função `resolveTaskStage(task, stages, boardStages)` foram centralizados em `src/lib.ts` e reexportados em `src/reports.ts`.
+     - A função canônica `completed(task, stages, boardStages)` retorna diretamente `resolveTaskStage(task, stages, boardStages).isFinal`.
+     - O cálculo de `computeTaskStatus` em `src/reports.ts` avalia `stageInfo.isFinal`, garantindo concordância matemática exata entre Dashboard, Aba de Concluídas e Relatórios.
+  2. **Reabertura Estrita e Limpeza de `completed_at`:**
+     - Confirmado que a movimentação para fora da etapa final atribui `completed_at: null` tanto no cliente (`moveTask` em `src/App.tsx`) quanto no banco PostgreSQL (`on_task_write`).
+     - Se uma tarefa possui `completed_at` antigo mas sua etapa atual é resolvida e não-final (`is_final: false`), ela é considerada rigorosamente ativa / em andamento.
+  3. **Restrição de Fallback:**
+     - O fallback por `Boolean(task.completed_at)` só é disparado caso a etapa não seja encontrada em nenhuma lista, emitindo `console.warn` em desenvolvimento e testes.
+  4. **Varredura e Integração em Tela:**
+     - `Dashboard.tsx`: `flowStages` consome `getStagesForBoard`, cobrindo Geral, Visões de Setor e Quadros Customizados.
+     - `App.tsx`: `dashboard` utiliza `taskBuckets` com `data.boardStages`; `renderCompleted` filtra via `completed(t, allStages, data.boardStages)` e disponibiliza filtro por quadro; `TaskList` resolve badges de etapa via `resolveTaskStage` e exibe a coluna "Quadro".
+- **Consequências:**
+  - Concordância absoluta de métricas entre Dashboard, Concluídas e Relatórios no mesmo escopo.
+  - Zero tarefas em fallback no conjunto de dados de demonstração (`demo.ts`).
+  - Suíte de testes automatizados expandida para **236 testes** aprovados com 100% de sucesso no Vitest (`completed-tasks-unification.test.ts`).
+  - Compilação de produção limpa (`tsc -b && vite build`) concluída com código 0.
+
+---
+
+## ADR-023: Redesign Visual e de Apresentação da Aba Geral (Modos Lateral e Consolidado)
+
+- **Data:** 2026-11-19
+- **Status:** Aprovado
+- **Contexto:**
+  A apresentação da aba Geral de Tarefas possuía cinco faixas visuais dispersas e redundantes (`task-tabs`, `board-tabs-bar`, `GeneralToolbar`, `task-tools`, `task-subtools` e `general-quick-nav`), contorno escuro nas abas ativas, cards com chips de quadro repetidos dentro do próprio bloco do quadro, e necessidade de colunas vazias recolhidas para melhor aproveitamento horizontal do espaço. Não havia necessidade de alteração de regras de negócio, permissões ou migrations de banco (a tabela `boards` já possuía a coluna `color`).
+- **Decisões Técnicas:**
+  1. **Paleta Estável de Cores por Quadro (`src/general-views.ts`):**
+     - Criação da constante `BOARD_COLOR_PALETTE` contendo 10 cores semânticas com pares de tokens para temas claro e escuro.
+     - Garantia matemática de conformidade WCAG AA (taxa de contraste `>= 4.5:1`) para todos os pares em ambos os temas.
+     - Função `getBoardVisual` com mapeamento semântico estável por nome (Comercial: azul `#2563eb`, Implantação: roxo `#7c3aed`, Suporte: teal `#0d9488`, Backlog: âmbar `#d97706`, Atualização sistema: rosa `#db2777`), respeito a cores customizadas do banco e fallback determinístico por hash.
+  2. **Consolidação em 3 Camadas no Topo (`src/GeneralViews.tsx`, `src/App.tsx`, `src/general-views.css`):**
+     - Camada 1: Abas de módulo (`Tarefas`, `Fluxos`, `Templates`, `Tags`) com o botão `+ Nova tarefa`.
+     - Camada 2: Faixa fixa (`sticky`), com sombra sutil e fundo de superfície, contendo as abas de quadros com dot colorido de cada quadro, aba ativa com sublinhado azul de 3px (`border-bottom: 3px solid #2563eb`), foco visível apenas via teclado (`:focus-visible`) e sem contorno preto.
+     - Camada 3: Linha única de controles consolidada da aba Geral com altura padronizada de 34px: seletor segmentado de modo (Lateral/Consolidado) com botões ativos em azul preenchido, seletor de situação (Em andamento/Concluídas/Todas), busca integrada com ícone de lupa, botão popover `Filtros (n)` para prioridade, equipe, responsável, cliente e prazo, seletor de quadros e toggle "Ocultar colunas vazias".
+     - Remoção definitiva da linha obsoleta "Ir para:".
+  3. **Modo Geral Lateral (`GeneralLateralView`):**
+     - Blocos de quadros lado a lado com rolagem horizontal contínua.
+     - Cabeçalho do bloco sticky com tokens de cor semânticos do quadro nos dois temas.
+     - Colunas com 0 tarefas recolhidas por padrão em tiras verticais de `46px` de largura, com contador circular `0`, título na vertical (`writing-mode: vertical-lr`) e expansão automática ao clicar ou arrastar um card por cima (`onDragOver`).
+     - Títulos longos de etapas com quebra em até duas linhas sem corte.
+  4. **Modo Geral Consolidado (`GeneralAccordionView`):**
+     - Lista de faixas com primeira aberta e demais recolhidas por padrão.
+     - Faixa recolhida exibindo resumo `Por etapa:` com chips das etapas com mais tarefas primeiro.
+     - Botões compactos de lote `Expandir todos` e `Recolher todos` na barra consolidada.
+     - Colunas vazias abertas por padrão com altura compacta de 1 card ("Sem tarefas"), mantendo recolhidas no Geral Canônico (15 etapas).
+  5. **Persistência de Preferências em `localStorage`:**
+     - `getUserHideEmptyColumns(userId, mode)` e `setUserHideEmptyColumns(userId, mode, hide)` mantendo preferências isoladas por modo (Lateral default `true`, Consolidado default `false`) e por usuário.
+  6. **Design do Card de Tarefas (`GeneralTaskCard`):**
+     - O chip com o nome do quadro não é exibido quando a tarefa já se encontra no bloco do seu próprio quadro, aparecendo apenas no Geral canônico misto.
+     - Faixas de encaminhamento no rodapé padronizadas em linha única contínua sem quebras de texto.
+- **Consequências:**
+  - Interface moderna, limpa, ergonômica e de alto impacto visual para as equipes de atendimento e desenvolvimento da Somax.
+  - Regra 9 (fonte única da verdade, concordância de contadores e métricas) estritamente preservada.
+  - Modo demonstração (`src/demo.ts`) 100% funcional sem Supabase e sem rede.
+  - Cobertura de testes automatizados expandida para **242 testes** aprovados com 100% de sucesso no Vitest (`general-views.test.ts` e `theme-contrast.test.ts`).
+  - Compilação de produção (`npm run build`) concluída com código 0 e sem erros de TypeScript.
+
+---
+
+## ADR-024: Transformação da Aba Geral em Visão Pura de Agregação e Somente Leitura
+
+- **Data:** 2026-11-19
+- **Status:** Aprovado
+- **Contexto:**
+  Na arquitetura do Somax Hub, cada tarefa operacional pertence a um quadro específico (Comercial, Implantação, Suporte, Dev Scrum, etc.). A aba "Geral", por agregar todos os quadros e fluxos corporativos em uma visão macro panorâmica (modos Lateral e Consolidado), permitia operações diretas de drag-and-drop e exclusão de tarefas. Essa duplicidade operacional gerava confusão cognitiva para os usuários ao arrastar cards entre colunas em blocos de quadros diferentes, além de riscos de criação de tarefas sem quadro associado (`board_id = null` ou `board-geral`).
+- **Decisões Técnicas:**
+  1. **Visão Pura de Agregação e Somente Leitura (`src/GeneralViews.tsx`, `src/general-views.css`):**
+     - A aba Geral passa a operar exclusivamente como um hub executivo de monitoramento e agregação de dados entre quadros.
+     - Desativação completa de arrastar e soltar tarefas (`draggable={false}`) nos cards de tarefas do Geral (`GeneralTaskCard`).
+     - Remoção de zonas de soltura (drop zones) de movimentação de tarefas nas colunas Kanban do Geral. As tiras de 46px recolhidas continuam responsivas a clique para alternar expansão.
+     - Remoção de ações destrutivas rápidas (excluir tarefa) diretamente nos cards do Geral.
+     - Manutenção do clique nos cards (`onTaskSelect`) para abertura do modal detalhado de inspeção da tarefa.
+  2. **Navegação Direta para o Quadro Operacional (`onNavigateToBoard`):**
+     - Adição do botão "Abrir quadro" (`general-btn-open-board`) com ícone `ExternalLink` nos cabeçalhos de blocos do modo Lateral e nas faixas do modo Consolidado.
+     - O botão navega instantaneamente para o quadro operacional específico (`setActiveBoardId`), onde os operadores realizam transições de etapas, edições e gerenciamento de fluxo no seu contexto natural de trabalho.
+  3. **Identificação Visual Transparente (`src/App.tsx`, `src/GeneralViews.tsx`):**
+     - Atualização do pill/badge da aba Geral no topo de "Canônico" para "Agregação".
+     - Adição de badge semântico informativo no `GeneralToolbar` com ícone `Eye`: "Visão de agregação (somente leitura)" e tooltip explicativo.
+  4. **Garantia de Pertencimento a Quadro no Modal de Criação (`src/NewTaskForm.tsx`):**
+     - Quando o modal de criação de tarefa é disparado a partir da aba Geral, é exigida a seleção do "Quadro de Destino *", populado exclusivamente com quadros operacionais (`operationalBoards`).
+     - Nenhuma nova tarefa pode ser criada sem quadro ou como órfã.
+     - A seleção do quadro de destino sincroniza dinamicamente as etapas do quadro (`boardStages`), a equipe responsável (`teamId`) e, no caso de quadros Scrum (`methodology === 'scrum'`), expõe a seleção de sprint ativa/planejada e estimativa de Story Points.
+- **Consequências:**
+  - Eliminação definitiva de ambiguidades operacionais e arrastos acidentais de cards entre quadros na visão macro.
+  - Alinhamento pleno com a doutrina de negócio da Somax e preservação estrita da Regra 9 (fonte única da verdade e concordância de contadores).
+  - Modo demonstração (`src/demo.ts`) 100% preservado.
+  - Suíte de testes automatizados expandida para **248 testes** aprovados com 100% de sucesso no Vitest (inclusão de `src/general-readonly.test.tsx`).
+  - Compilação de produção limpa (`tsc -b && vite build`) concluída com código 0.
+
+---
+
+## ADR-025: Arquitetura de Banco, Segurança e Ciclo de Vida do Chat da Equipe (Canais, Mensagens, Moderação, Menções e Exclusão Segura)
+
+### Contexto
+O chat da equipe necessitava de evolução para suportar gestão completa de canais (criação, edição, arquivamento e exclusão definitiva), ciclo de vida de mensagens (edição pelo autor, moderação por gestores/administradores, conformidade com a LGPD em exclusões), menções diretas com validação estrita no servidor (`@usuario` e `@todos`) e métricas de não lidas com destaque visual.
+
+### Decisões Tomadas
+1. **Proteção Estrutural do Canal "Geral":** Criado trigger de banco `guard_channel_geral` em `public.channels` que impede incondicionalmente a renomeação, o arquivamento (`archived_at is not null`) e a exclusão do canal "Geral" de qualquer equipe, independentemente do privilégio do chamador.
+2. **Ciclo de Vida de Canais e RLS:**
+   - Visualização: restrita a membros ativos da equipe (`can_access_channel`).
+   - Criação e Edição (nome, descrição e arquivamento): restrita a gestores da equipe (`is_team_manager`) ou administradores (`is_admin`).
+   - Exclusão Definitiva: restrita estritamente a administradores (`is_admin`), delegada a uma Edge Function com `service_role` para expurgo seguro dos arquivos do Storage no bucket `chat-private`, cascade no banco e registro na tabela de auditoria `channel_deletion_audit`.
+3. **Escopo de Participação em Canais:** Canais pertencem a "Toda a equipe" (padrão arquitetural). A opção de canais com membros selecionados permanece desabilitada com etiqueta visual *(em breve)* para não fragmentar nem reescrever as funções centrais de RLS de acesso.
+4. **Ciclo de Vida de Mensagens e Moderação:**
+   - Adicionadas colunas `edited_at`, `deleted_at`, `mentions uuid[]` e `mentions_all boolean` em `public.messages`.
+   - Trigger `guard_message_lifecycle` garante a imutabilidade estrita de `author_id`, `channel_id`, `created_at`, `reply_to_id` e `task_id`.
+   - Edição de conteúdo (`body`): permitida exclusivamente ao autor original e proibida em canais arquivados.
+   - Remoção / Soft-delete (`deleted_at`): autor, gestor da equipe ou administrador podem remover. Em conformidade com a LGPD, o conteúdo textual é zerado (`body = ''`) e as marcações são removidas.
+5. **Sanitização de Menções no Servidor:** O array `mentions` é sanitizado via trigger para manter única e exclusivamente UUIDs de usuários que sejam membros ativos da equipe daquele canal, prevenindo marcações forjadas ou acesso indevido.
+6. **Métricas Canônicas de Mensagens e Menções:** Criada a RPC `unread_channel_metrics()` com `SECURITY INVOKER`, retornando `unread_count` e `mention_count` por canal, ignorando mensagens removidas (`deleted_at is null`).
+7. **Interface do Chat da Equipe (`src/ChatPage.tsx`, `src/chat.css`):**
+   - Painel lateral com agrupamento de canais por equipe, busca em tempo real, pips de identificação de cor da equipe, badges em vermelho para menções diretas (`@n`) e em azul para mensagens não lidas.
+   - Gestão de canais com modal de criação/edição protegido contra alteração do canal "Geral", seção colapsável de canais arquivados e modal de exclusão definitiva com confirmação por digitação obrigatória do nome exato do canal.
+   - Moderação e ciclo de vida de mensagens: edição em linha pelo autor com marcação visual *(editada)* e exclusão lógica (soft-delete) com substituição para *"Mensagem removida"* sem conteúdo residual.
+   - Menu flutuante de menções inteligentes acionado por `@`, filtrando exclusivamente membros da equipe do canal e a opção `@todos`.
+   - Badges de notificação em tempo real integrados à barra lateral do sistema e ao sino da topbar em `src/App.tsx`.
+
+### Consequências
+- Blindagem total contra exclusão acidental do canal "Geral".
+- Conformidade estrita com a LGPD: mensagens apagadas não deixam resquício de texto no banco de dados.
+- Eliminação de risco de adulteração de autor, canal ou histórico no PostgreSQL.
+- Interface de alta fidelidade visual, acessível (WCAG AA >= 4.5:1) e responsiva.
+- Suíte expandida para **290 testes** no Vitest (`src/chat-interface.test.tsx` e `src/chat-security-permissions.test.ts`) 100% aprovados.
+- Compilação de produção (`npm run build`) sem erros.
+
+---
+
+## ADR-026: Redesign do Modal de Criação de Quadros — Assistente em Dois Passos com Prévia Fiel e Confirmação de Descarte
+
+- **Data:** 2026-11-19
+- **Status:** Aprovado
+- **Contexto:**
+  O modal original de criação de quadros (`CreateBoardModal`) concentrava todos os parâmetros em uma única tela vertical estreita (`max-w-2xl` / ~672px), gerando estouro horizontal nas colunas de configuração de etapas (colunas de WIP, etapa final e botões de ordenação cortados), rolagem dupla, uso arcaico de códigos hexadecimais brutos (`#94a3b8`, `#3b82f6`) em seletores de cor de etapas, e presença de opções confusas como "Origem das tarefas" e "Espelhar etapas do Geral".
+- **Decisões Técnicas:**
+  1. **Arquitetura de Assistente em Dois Passos (`src/BoardModals.tsx`):**
+     - Estruturação em 2 etapas focadas: **Passo 1 ("Configuração")** e **Passo 2 ("Acesso e revisão")**.
+     - Cabeçalho com indicador claro de progresso por stepper semântico (`wizard-step-badge active / completed`).
+  2. **Ergonomia e Layout Responsivo (`src/reference-layout.css`):**
+     - Largura do modal expandida para até `860px` (`width: min(860px, calc(100vw - 24px))`), responsivo em viewport móvel (`@media (max-width: 640px)` em tela cheia).
+     - Eliminação de qualquer barra de rolagem horizontal com uso de `overflow-x: hidden`, flexbox responsivo e grid adaptativo.
+     - Conformidade WCAG AA estrita utilizando variáveis de tema (`--modal-bg`, `--text-primary`, `--border-main`, `--primary-main`, etc.) sem hexadecimais soltos.
+  3. **Paleta de Cores Nomeadas e Amigáveis:**
+     - Paleta de 8 cores do sistema para o quadro (`NAMED_BOARD_COLORS`: Azul, Roxo, Verde, Âmbar, Rosa, Vermelho, Índigo e Cinza) em chips circulares acessíveis com marcação de seleção.
+     - Cores das etapas selecionadas por **NOME** (`NAMED_STAGE_COLORS`), eliminando strings hexadecimais na interface.
+  4. **Modelos Predefinidos de Quadro (`BOARD_TEMPLATES`):**
+     - 5 modelos definidos em código TypeScript: *Em branco*, *Suporte*, *Comercial*, *Implantação* e *Scrum padrão*.
+     - A escolha do modelo pré-popula as etapas na lista e define a metodologia correspondente, mantendo total flexibilidade para edição pelo usuário.
+  5. **Metodologia e Automatização do Scrum:**
+     - Cartões estilizados para Kanban e Scrum.
+     - Ao selecionar Scrum, callout informativo informa que Backlog e Sprints são criados e gerenciados automaticamente.
+  6. **Reordenação Flexível de Etapas:**
+     - Suporte duplo para ordenação: alça para arrastar (`GripVertical` com Drag and Drop HTML5) e botões/atalhos de teclado (`ArrowUp` / `ArrowDown`), garantindo total acessibilidade.
+     - Validação que exige nome preenchido, mínimo de 2 etapas, pelo menos 1 etapa final e limites WIP inteiros positivos (`> 0`).
+  7. **Passo 2 com Layout em Duas Colunas e Prévia Fiel:**
+     - **Coluna Esquerda:** cartões de acesso ("Privado da equipe" e "Corporativo"), dropdown de Equipe Responsável e comportamento "Ao concluir uma tarefa" (`ask`, `suggest_default` com seleção de quadro e etapa de destino via `getStagesForBoard`, e `none`).
+     - Campo "Fase da jornada do cliente" deliberadamente omitido (já verificado que não existe no banco de dados).
+     - **Coluna Direita:** painel "Como o quadro vai ficar" com colunas proporcionais, dot colorido da etapa, badges WIP e Final e cards simulados; card de resumo com atributos consolidados; checklist informativo "Antes de criar".
+  8. **Robustez, Idempotência e Confirmação de Descarte:**
+     - Bloqueio de submissão concorrente com flag de referência (`isSubmittingRef`) e desabilitação de botões durante o salvamento (`busy`).
+     - Tratamento robusto de erros: caso ocorra falha de rede/API, o modal **não** fecha e **não** perde dados digitados, exibindo banner destacado em vermelho.
+     - Detecção de modificações (`isDirty`) e diálogo de confirmação de descarte de alterações caso o usuário tente fechar pelo botão X, clique no backdrop ou tecla Escape.
+     - Suporte a foco preso (trap focus) dentro do modal com ciclo de teclado (Tab e Shift+Tab).
+  9. **Limpeza de Escopo na Criação:**
+     - Remoção definitiva da interface de criação das seções "Origem das tarefas" e "Espelhar etapas do Geral", mantendo o quadro criado como independente (`type: 'custom'`).
+- **Consequências:**
+  - Experiência de uso fluida, agradável e ergonômica na criação de quadros operacionais.
+  - Eliminação de estouros de layout e barras de rolagem duplas.
+  - Testes automatizados criados em `src/create-board-wizard.test.tsx` com 100% de sucesso.
+  - Suíte completa com 262 testes verdes no Vitest e compilação de produção (`npm run build`) sem erros.
+
+---
+
+## ADR-028: Padronização Visual e Ergonômica de Largura entre Modais — Criar Novo Quadro e Nova Tarefa (720px)
+
+- **Data:** 2026-11-19
+- **Status:** Aprovado
+- **Contexto:**
+  O assistente de criação de quadros (ADR-026) havia sido inicialmente projetado com largura de 860px (`min(860px, calc(100vw - 24px))`), diferindo do modal de "Nova Tarefa" (`.new-task-modal-v2`), que possui largura nominal consolidada de 720px (`width: 720px !important; max-width: 95vw !important; border-radius: 16px;`). O usuário solicitou que o modal "Criar Novo Quadro" compartilhasse exatamente a mesma largura do modal "Nova Tarefa", proporcionando consistência e uniformidade visual nas interações do sistema.
+- **Decisões Técnicas:**
+  1. **Largura e Geometria Idênticas (`src/reference-layout.css`):**
+     - `.board-wizard-modal` ajustado para `width: 720px !important; max-width: min(720px, calc(100vw - 24px)) !important; max-height: min(90vh, 880px); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.18);`.
+  2. **Remoção da Classe Restritiva `.modal` (`src/BoardModals.tsx`):**
+     - O container raiz do modal passa a utilizar estritamente `className="board-wizard-modal"` (sem a classe legada `.modal`), evitando interferência da regra `.modal:not(...)` de 480px em `style.css` e alinhando-se com a diretriz dos modais modernos v2 do sistema.
+  3. **Acomodação Ergonômica dos Elementos Internos em 720px:**
+     - Ajuste do grid de modelos `.board-templates-grid` para `grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;`, permitindo que os 5 modelos predefinidos caibam perfeitamente na largura interna disponível (~672px úteis) sem quebra indesejada.
+     - Preservação da lista de etapas com alça de arrastar, botões de teclado e seletores com espaçamento confortável sem overflow horizontal.
+     - Preservação da responsividade do Passo 2 (duas colunas equilibradas em desktop e quebra fluida em coluna única em telas estreitas).
+- **Consequências:**
+  - Consistência estética e previsibilidade dimensional entre os dois principais modais de entrada do sistema.
+  - Eliminação de qualquer barra de rolagem horizontal.
+  - 100% de aprovação na suíte de testes Vitest (288 testes passando) e build de produção compila sem erros (`npm run build`).
+
+---
+
+## ADR-029: Gestão Completa de Modelos de Quadro (Criação, Edição, Exclusão e Interoperabilidade com o Assistente de Quadros)
+
+- **Data:** 2026-11-20
+- **Status:** Aprovado
+- **Contexto:**
+  Após a transição da aba "Fluxos" para "Modelos de Quadro" na aba Templates (ADR-027), a interface exibia apenas uma listagem fixa em modo somente leitura dos 5 modelos predefinidos. O usuário reportou a impossibilidade de editar os modelos existentes ou adicionar novos modelos personalizados. Havia necessidade de permitir que administradores e gestores configurem, editem e excluam modelos de quadro completos (etapas, cores, WIP, marcas de etapa final e metodologia), com persistência tanto no Supabase quanto no modo demonstração offline, e interoperabilidade direta com o assistente de criação de novos quadros.
+- **Decisões Técnicas:**
+  1. **Fonte Única de Dados Dinâmica (`Data.boardTemplates`):**
+     - O tipo `Data` em `src/lib.ts` passa a conter formalmente `boardTemplates?: BoardTemplate[]`.
+     - `DEFAULT_BOARD_TEMPLATES` enriquecido com etapas ricas e completas com limites WIP e etapas finais compatíveis com as regras de validação.
+     - `demoData` em `src/demo.ts` inicializado com `[...DEFAULT_BOARD_TEMPLATES]`.
+     - No carregamento inicial (`reload` em `src/App.tsx`), `board_templates` é consultado via PostgREST de forma resiliente, com fallback automático para `DEFAULT_BOARD_TEMPLATES` caso a tabela ainda não exista no schema cache da instância remota conectada.
+  2. **Modal Ergonômico de Edição e Criação (`src/BoardTemplateModal.tsx`):**
+     - Criação do componente modal `BoardTemplateModal`, dimensionado em 720px (`border-radius: 16px`, sem overflow).
+     - Formulário abrangente: Nome do Modelo (obrigatório, mín. 2 caracteres), Descrição opcional, Metodologia (Kanban ou Scrum), Paleta oficial de 8 cores do sistema e editor dinâmico de etapas.
+     - Editor de etapas: drag-and-drop nativo com alça `GripVertical`, botões de reordenação por teclado (`ArrowUp`/`ArrowDown`), nome da etapa, seletor de cores nomeadas (`NAMED_STAGE_COLORS`), campo WIP opcional (inteiro `> 0`), checkbox "Final" e botão de remoção (mínimo de 2 etapas).
+     - Validação robusta em português do Brasil e diálogo de confirmação de descarte de alterações caso o usuário tente fechar com dados não salvos.
+  3. **Ações Administrativas na Aba Templates (`src/TemplateTab.tsx`):**
+     - Cabeçalho: botão `+ Novo Modelo de Quadro` para administradores/gestores (`canManage`).
+     - Cards de modelo: inclusão de botões `Editar` (`Pencil`) e `Excluir` (`Trash2` com diálogo de confirmação).
+     - Atalho "Criar quadro com este modelo": aciona a abertura de `CreateBoardModal` passando o identificador do modelo pré-selecionado.
+  4. **Interoperabilidade Imediata com o Assistente de Criação (`src/BoardModals.tsx`):**
+     - `CreateBoardModal` passa a consumir dinamicamente `availableTemplates` a partir de `data.boardTemplates` (com fallback para `BOARD_TEMPLATES`).
+     - Novo parâmetro opcional `initialTemplateId` permite carregar e pré-selecionar o modelo desejado imediatamente.
+     - Todo modelo criado ou editado pelo usuário fica instantaneamente disponível para seleção ao criar novos quadros operacionais.
+  5. **Operações de Persistência no Banco e no Demo:**
+     - `saveDemoBoardTemplate` e `deleteBoardTemplate` gerenciam o estado em memória no modo Demo com notificações toast via `flash()`.
+     - Operações Supabase efetuam `insert`, `update` e `delete` diretos na tabela `public.board_templates`, protegidos pelas políticas de RLS `board_templates_write`.
+- **Consequências:**
+  - Autonomia operacional plena para a Somax criar e customizar esteiras de trabalho reutilizáveis para novos fluxos.
+  - Testes automatizados criados em `src/board-templates.test.tsx` cobrindo adição, edição, exclusão e integração com o assistente de criação.
+  - Suíte completa do Vitest expandida para **27 arquivos de teste e 296 testes aprovados (100% verde)**.
+  - Compilação de produção (`npm run build`) concluída com código 0 e sem avisos de tipagem.
+
+---
+
+## ADR-030: Correção e Harmonização Global do Modo Escuro (:root[data-theme='dark']) e Aderência Estrita a WCAG AA (>= 4.5:1)
+
+- **Data:** 2026-11-20
+- **Status:** Aprovado
+- **Contexto:**
+  Após as recentes entregas dos módulos de Chat da Equipe (`ChatPage.tsx`, `chat.css`), Modais Modernos de Tarefas (`modern-tasks.css`, `NewTaskForm.tsx`, `TaskDetail.tsx`) e Modelos de Quadro (`TemplateTab.tsx`), o usuário reportou que o modo escuro apresentava falhas visuais ("modo escuro ficou bugado"). A auditoria técnica identificou:
+  1. No Chat, ausência de regras com o seletor `:root[data-theme='dark']` para classes do chat, gerando fundos brancos residuais e texto branco sobre fundo claro por uso de variáveis ausentes como `--bg-surface-soft`.
+  2. Nos cards da visão Geral de Tarefas (`GeneralViews.tsx`), o chip identificador do quadro utilizava inline style `color: taskBoardVisual.light.text` fixo, resultando em texto escuro sobre fundo escuro no tema dark.
+  3. No modal de "Nova Tarefa" (`NewTaskForm.tsx`), a seleção de modelos de subtarefa usava inline style `#eff6ff` (azul bebê claro), causando estouro de contraste no tema escuro.
+  4. Na aba de "Templates" (`TemplateTab.tsx`), badges de metodologia Scrum/Kanban e chips de etapas (Final e WIP) possuíam cores hexadecimais fixas claras e escuras sem adaptação a temas.
+  5. Nas abas de navegação de quadros (`.board-tab.active`), a cor primária `#2563eb` possuía contraste marginal em telas escuras.
+- **Decisões Técnicas:**
+  1. **Expansão dos Tokens Semânticos (`src/theme-tokens.css`):**
+     - Adição dos tokens e aliases nos blocos `:root` e `:root[data-theme='dark']`: `--bg-surface-soft`, `--bg-muted`, `--color-primary-base`, `--brand-primary`, `--accent`, `--color-success`, `--color-warning`, `--surface-hover` e `--bg-primary-subtle`.
+  2. **Estilização Completa do Chat no Tema Escuro (`src/chat.css` e `src/main.tsx`):**
+     - Bloco dedicado `:root[data-theme='dark']` cobrindo `.chat-container`, `.chat-sidebar-panel`, `.chat-conversation-panel`, `.chat-message-stream`, `.chat-msg-row`, `.chat-composer-box`, `.chat-mentions-popup` e modais do chat.
+     - Inclusão do import de `chat.css` em `src/main.tsx` para garantia de carregamento global.
+  3. **Adaptação Dinâmica do Chip de Quadro nos Cards (`src/GeneralViews.tsx` e `src/general-views.css`):**
+     - O componente `GeneralTaskCard` passa a injetar variáveis CSS (`--board-chip-bg-dark`, `--board-chip-text-dark`, `--board-chip-border-dark`) calculadas a partir da paleta semântica (`BOARD_COLOR_PALETTE`), com sobrescrita explícita via `:root[data-theme='dark'] .task-board-chip` para garantir contraste mínimo WCAG AA `>= 4.5:1`.
+  4. **Padronização Semântica na Aba Templates (`src/TemplateTab.tsx`):**
+     - Badges Scrum e Kanban convertidas para tokens semânticos (`--chip-purple-bg`/`--chip-purple-text` e `--chip-info-bg`/`--chip-info-text`).
+     - Chips de etapa (Final e WIP) convertidos para `--color-success` e `--color-warning`.
+  5. **Modais de Tarefas e Quadros (`src/modern-tasks.css`, `src/NewTaskForm.tsx`, `src/BoardModals.tsx`, `src/dark-theme.css`):**
+     - Checkbox de templates em nova tarefa refatorado para a classe `.template-checkbox-item-v2.is-checked` com tokens semânticos.
+     - Bloco escuro para abas de quadros (`.board-tab.active`, `.board-tab-tag`, `.btn-manage-stages`, `.tab-reorder-btn`).
+- **Consequências:**
+  - Experiência visual harmoniosa, moderna e livre de aberrações de contraste em ambos os temas (claro e escuro).
+  - Testes de contraste em `src/theme-contrast.test.ts` ampliados para 47 asserções cobrindo todos os novos seletores e tokens.
+  - Suíte completa de 297 testes Vitest 100% verde e build de produção compilando perfeitamente.
+
+---
+
+## ADR-031: Redesign da Página de Configurações, Perfil Corporativo, Preferências de Visualização e Alertas de Notificação
+
+- **Data:** 2026-11-20
+- **Status:** Aprovado
+- **Contexto:**
+  O sistema possuía uma tela básica de configurações em coluna única com dados pessoais, troca de senha e alternador de tema. O usuário demandou a evolução para uma central completa de configurações com personalização de preferências de notificação (sons e alertas no navegador), visualização padrão de tarefas (Quadro Kanban vs. Lista detalhada), modo do Geral (Lateral vs. Consolidado), colunas vazias, tela de entrada ao logar e visualização rica dos dados de perfil corporativo.
+- **Decisões Técnicas:**
+  1. **Módulo Canônico de Preferências (`src/user-preferences.ts`):**
+     - Criação da interface `UserPreferences` encapsulando: `defaultTaskView` (`'kanban' | 'lista'`), `defaultGeneralMode` (`'lateral' | 'consolidado'`), `hideEmptyColumns` (`boolean`), `startPage` (`'dashboard' | 'tasks' | 'chat'`), `soundChatMessages` (`boolean`), `soundChatMentions` (`boolean`), `browserNotifications` (`boolean`) e `taskDueAlerts` (`boolean`).
+     - Leitura e gravação resilientes em `localStorage` por `userId`, com sincronização bidirecional das chaves legadas utilizadas na aba Geral.
+     - Implementação da função `playNotificationChime(type)` para síntese de áudio nativa via Web Audio API (sem assets pesados nem quebras em navegadores que bloqueiam áudio automático).
+  2. **Arquitetura de Navegação em Abas no Componente (`src/UserSettings.tsx`):**
+     - Estruturação em 4 subabas acessíveis:
+       1. *Perfil Corporativo*: Dados de contato (nome, WhatsApp com máscara, e-mail institucional), cargo/função (com destaque visual para Master/Gestor) e chips das equipes ativas.
+       2. *Preferências de Tarefas*: Alternadores segmentados para Kanban vs Lista, modo Lateral vs Consolidado, recolhimento de colunas vazias e página de entrada.
+       3. *Notificações & Sons*: Interruptores de áudio para mensagens e menções, botão para solicitar permissão desktop push (`Notification.requestPermission()`) e botão de teste de notificação.
+       4. *Segurança & Aparência*: Troca de senha com validação e seletor de tema claro/escuro.
+     - Preservação do estado dos formulários através de atributos `hidden` nos painéis inativos, evitando o desmonte do DOM e perda de dados não salvos ao alternar entre abas.
+  3. **Respeito às Preferências na Inicialização do Hub (`src/App.tsx`):**
+     - `taskView` e `page` inicializam lendo as preferências do usuário ativo, carregando diretamente a visão preferida (ex: Lista detalhada ou Quadro Kanban).
+  4. **Estilos e Design Tokens (`src/user-settings.css`):**
+     - Criação de componentes visuais: `.pref-segment-group`, `.pref-segment-btn`, `.pref-switch-wrap`, `.pref-slider`, `.btn-test-sound`.
+     - Suporte nativo ao tema escuro (`:root[data-theme='dark']`) aderente à paleta semântica do sistema.
+- **Consequências:**
+  - Autonomia e conforto ergonômico para os colaboradores da Somax configurarem seu fluxo diário de trabalho.
+  - Testes automatizados criados em `src/user-settings.test.tsx` com 100% de aprovação.
+  - Suíte de testes expandida para **29 arquivos e 312 testes Vitest aprovados (100% verde)**.
+  - Compilação de produção (`npm run build`) concluída com código 0.
+
+
+---
+
+## ADR-032: Exclusão Segura de Usuários e Equipes com Integridade Referencial
+
+- **Data:** 2026-11-20
+- **Status:** Aprovado
+- **Contexto:**
+  O sistema permitia o cadastro e a edição de equipes e usuários nas páginas de administração (`TeamsPage`, `UsersPage` e `UserEditor`), porém não disponibilizava mecanismos para exclusão. Ao implementar a exclusão de usuários e equipes, havia riscos severos de integridade e segurança:
+  1. *Tarefas órfãs ou violação de FK:* A tabela `tasks` possui `team_id uuid not null references teams(id)`. Se uma equipe for excluída com tarefas ativas, o banco dispara `foreign_key_violation` ou corrompe a árvore de tarefas.
+  2. *Tarefas com responsável excluído:* A coluna `tasks.assignee_id references profiles(id)` ficaria inconsistente se o perfil fosse removido sem tratamento.
+  3. *Elevação de privilégio e autodestruição:* Proibir a auto-exclusão do usuário logado, proteger o `Administrador Master` contra exclusão e restringir a exclusão de administradores exclusivamente ao Master.
+  4. *Modo Demonstração vs. Nuvem:* O modo de demonstração local (`src/demo.ts`) precisa refletir as exclusões em memória instantaneamente, enquanto o modo Supabase deve executar de forma atômica via RPCs `SECURITY DEFINER` e Edge Function `manage-user`.
+- **Decisões Técnicas:**
+  1. **Regras e Fluxo para Exclusão de Equipes (`TeamsPage.tsx` e RPC `delete_team`):**
+     - O botão "Excluir equipe" está disponível para administradores no modal de detalhes da equipe (`selected`) e no modal de edição (`editing`).
+     - *Bloqueio de Integridade:* Antes de qualquer ação, o sistema verifica se há tarefas vinculadas à equipe (`data.tasks.filter(t => t.team_id === team.id)`). Se houver, a exclusão é **bloqueada**, exibindo alerta instruindo o administrador a reatribuir ou finalizar as tarefas primeiro.
+     - *Execução Atômica no Banco:* A migration `supabase/migrations/202611200001_delete_user_and_team_rpcs.sql` introduz a RPC `delete_team(p_team_id uuid)` que valida se o chamador é administrador, confere a contagem de tarefas e remove em cascata links de autocadastro, canais, quadros personalizados e membros da equipe antes de apagar a equipe.
+     - *Modo Demonstração:* Remove a equipe do estado `data.teams`, remove membros em `data.members`, desvincula links de autocadastro e canais em memória.
+  2. **Regras e Fluxo para Exclusão de Usuários (`UsersPage`, `UserEditor.tsx`, Edge Function `manage-user` e RPC `delete_managed_user`):**
+     - *Salvaguardas de Segurança Inegociáveis:*
+       - Proibido excluir o Administrador Master (`is_master === true`).
+       - Proibida a auto-exclusão (`user.id === currentUserId`).
+       - Administradores comuns não podem excluir outros administradores (`canMaster` mandatório).
+     - *Alerta de Tarefas Atribuídas:* Se o usuário possuir tarefas sob sua responsabilidade, o modal de confirmação alerta explicitamente a quantidade de tarefas que passarão a ficar sem responsável (`assignee_id = null`).
+     - *Exclusão pelo Modal e pela Tabela:* Ação "Excluir" disponível na coluna de Ações da tabela de usuários e botão "Excluir usuário" no rodapé de `UserEditor.tsx` (posicionado à esquerda com estilo destrutivo seguro).
+     - *Edge Function e RPC Resiliente:* `manage-user` aceita `action: 'delete'`. A RPC `delete_managed_user(p_user_id uuid)` limpa `team_members` e `message_reads`, atualiza `tasks.assignee_id = null` e tenta a exclusão física (`hard delete`). Se houver vínculos imutáveis de histórico (ex.: `created_by` em tarefas ou mensagens), efetua fallback seguro para anonimização (`soft_delete_anonymized`: `active = false`, desativa credenciais e anonimiza nome).
+- **Consequências:**
+  - Gerenciamento completo do ciclo de vida de equipes e usuários com zero risco de corrupção relacional ou orfandade de dados.
+  - Testes automatizados criados em `src/delete-user-and-team.test.tsx` cobrindo regras de autorização, bloqueios do master e integridade.
+  - Suíte completa do Vitest com **29 arquivos e 312 testes aprovados (100% verde)**.
+  - Build de produção (`npm run build`) validado com sucesso.
+
+---
+
+## ADR-033: Resiliência na Exclusão de Canais do Chat (RPC Atômica e Eliminação da Dependência de Edge Function)
+
+- **Data:** 2026-11-20
+- **Status:** Aprovado
+- **Contexto:**
+  Ao tentar excluir um canal no Chat da Equipe, o usuário recebia a mensagem `"Falha de conexão com o servidor Supabase (Failed to fetch). Verifique sua conexão com a internet ou se extensões do navegador (adblock/firewall) estão bloqueando requisições para o Supabase."`.
+  O diagnóstico revelou que o componente `ChatPage.tsx` disparava um `fetch` HTTP direto para `${VITE_SUPABASE_URL}/functions/v1/delete-channel`. Como as Edge Functions em Deno não são provisionadas automaticamente quando o projeto roda no Supabase sem deploy explícito via CLI, a requisição era rejeitada pelo navegador com `TypeError: Failed to fetch`.
+- **Decisões Técnicas:**
+  1. **Criação da RPC Atômica no PostgreSQL (`public.delete_channel_atomic`):**
+     - Criada a migration sequencial `supabase/migrations/202611200002_delete_channel_atomic_rpc.sql`.
+     - Função com `security definer` e `search_path = ''`.
+     - Validação rigorosa: chamador autenticado, perfil administrador ativo (ou service_role), bloqueio inegociável de exclusão do canal "Geral", conferência exata do texto de confirmação digitado.
+     - Contabilização e registro do expurgo na tabela `public.channel_deletion_audit`.
+     - Exclusão do canal em cascata relacional para `messages`, `attachments` e `message_reads`.
+  2. **Camada de Resiliência no Front-end (`src/ChatPage.tsx`):**
+     - O cliente expurga arquivos físicos de anexos no bucket `chat-private` via Supabase Storage.
+     - Invoca `supabase.rpc('delete_channel_atomic', { ... })`.
+     - Fallback robusto: se a RPC não existir ainda no banco (ex: script pendente no SQL Editor), o sistema recorre imediatamente à exclusão direta via `supabase.from('channels').delete().eq('id', ...)`, que já possui cobertura e proteção RLS (`channels_delete`) e trigger de guarda (`trg_guard_channel_geral`).
+  3. **Script Unificado de Migrations Atualizado:**
+     - A nova RPC foi anexada em `supabase/aplicar_pendentes_supabase.sql`.
+- **Consequências:**
+  - Erro `Failed to fetch` eliminado na exclusão de canais do chat.
+  - Operação 100% via API nativa PostgREST do Supabase, sem dependência de deploy de Edge Functions.
+  - Teste de regressão adicionado em `src/chat-security-permissions.test.ts`.
+  - Suíte de 313 testes Vitest 100% verde e build de produção bem-sucedido.
+
+---
+
+## ADR-034: Harmonização Visual da Linha de Abas de Quadros no Modo Escuro (Tarefas)
+
+- **Data:** 2026-11-21
+- **Status:** Aprovado
+- **Contexto:**
+  Na página de Tarefas, a barra de abas de quadros (`Geral`, `Meus quadros`, `Comercial`, `Implantação`, `suporte n1`, `backlog`, `Atualização sistema`, `+ Novo quadro`) apresentava inconsistências visuais no modo escuro:
+  1. *Fundo da barra desconectado:* Utilizava a cor de superfície dos cards, aparentando ser uma faixa de outra cor cortando a página.
+  2. *Poluição Visual por Botões de Acessibilidade:* Os botões de reordenação por teclado (`←` e `→`) eram renderizados permanentemente com bordas e fundos cinzas entre todas as abas, fragmentando a leitura.
+  3. *Descompasso Cromático da Aba Ativa:* O sublinhado ativo utilizava um tom roxo escuro enquanto o texto e as marcas adotavam o azul Somax, com ausência de sobreposição precisa sobre a borda inferior da barra.
+  4. *Alinhamento do Botão "+ Novo quadro":* Apresentava margens desbalanceadas (`margin-bottom: 4px`), desalinhando-se da linha base das abas operacionais.
+  5. *Barra de Rolagem Bruta no Windows:* Em telas onde as 8 abas excediam a largura útil, o navegador renderizava a barra de rolagem horizontal nativa do sistema em tom claro berrante.
+  6. *Visibilidade dos Indicadores de Cores (Dots):* Os círculos coloridos de quadros com tons escuros (ex: Azul Somax e Teal) perdiam nitidez contra a superfície escura.
+- **Decisões Técnicas (Estritamente baseadas em Design Tokens `var(--...)`):**
+  1. **Fundo Unificado com a Página (`var(--bg-page)`):**
+     - O fundo de `.board-tabs-bar` foi definido com `var(--bg-page)` (com `border-bottom: 1px solid var(--border-main)` e sem sombras duras), eliminando a impressão de faixa desconectada tanto no tema claro quanto no escuro.
+  2. **Ocultação e Acessibilidade Progressiva dos Botões de Reordenação (`.tab-accessible-reorder`):**
+     - Transicionados para estado compacto invisível (`opacity: 0; max-width: 0; pointer-events: none`).
+     - Revelação suave com baixa opacidade (`opacity: 0.75`) e sem bordas pesadas ao passar o mouse na aba (`.board-tab-item:hover`) ou navegar via teclado (`:focus-within`), atingindo `opacity: 1` ao pairar diretamente sobre eles. Mantém 100% da função de troca de posição e reordenação.
+  3. **Harmonização da Aba Ativa:**
+     - Aba ativa estilizada via tokens: `color: var(--primary-main)` e `border-bottom: 2px solid var(--primary-main)` no tema claro; `color: var(--primary-text)` e `border-bottom: 2px solid var(--primary-text)` com fundo `var(--primary-subtle)` no tema escuro.
+     - Cantos superiores arredondados (`border-radius: 6px 6px 0 0`) e compensação `margin-bottom: -1px` para que a linha ativa repouse exatamente sobre a borda delimitadora da barra fixa.
+  4. **Abas Inativas e Estados de Interação:**
+     - Texto em `var(--text-secondary)` com excelente legibilidade (WCAG AA >= 13:1 no escuro).
+     - Estado hover com `var(--bg-surface-hover)` e foco visível por teclado via `:focus-visible` com `var(--border-focus)`.
+  5. **Luminosidade dos Indicadores Coloridos (Dots):**
+     - Mantidos rigorosamente alinhados com o texto (`gap: 7px; align-items: center`), recebendo contorno sutil `box-shadow: 0 0 0 1px var(--border-strong)` no modo escuro para garantir definição mesmo em tonalidades escuras.
+  6. **Padronização da Etiqueta "Agregação" e Botão "+ Novo quadro":**
+     - Etiqueta "Agregação" ajustada com dimensões compactas e contraste equilibrado por tema.
+     - Botão "+ Novo quadro" centralizado verticalmente na barra (`margin: auto 0 auto 6px`), com borda tracejada `var(--border-strong)` e transição suave no hover.
+  7. **Rolagem Horizontal Fluida:**
+     - Adicionado `scroll-behavior: smooth`, `scrollbar-width: thin` e trilho translúcido para rolagem horizontal suave no Windows sem quebra de layout.
+  8. **Consistência de Altura e Espaçamento:**
+     - Altura mínima padronizada (`min-height: 40px`, `margin-bottom: 14px`) em concordância rítmica com a barra de filtros e controles logo abaixo (`GeneralToolbar` / `task-tools` com 36px de altura).
+- **Consequências:**
+  - Barra de abas de quadros moderna, minimalista e 100% harmonizada nos dois temas.
+  - Zero cores fixas soltas: conformidade estrita aos tokens semânticos do projeto.
+  - Todos os comportamentos (clique de navegação, drag-and-drop, reordenação acessível, criação de quadros) preservados intactos.
+  - Suíte completa de 313 testes Vitest aprovados (100% verde).
+  - Compilação de produção (`npm run build`) concluída com código 0 em 7.60s.
+
+

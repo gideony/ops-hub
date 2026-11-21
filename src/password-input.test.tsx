@@ -40,6 +40,7 @@ describe('Campo de senha com mostrar/ocultar', () => {
         onThemeChange={() => {}}
         onProfileSaved={() => {}}
         notify={() => {}}
+        initialTab="seguranca"
       />
     )
     expect(html).toContain('Nova senha')

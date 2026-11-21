@@ -22,16 +22,61 @@ const priorityNames: Record<Task['priority'], string> = { baixa: 'Baixa', media:
 
 export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, activeBoard, currentBoardStages, boardSprints, activeSprint }: Props) {
   const allowedTeams = data.teams.filter(team => data.profiles.find(person => person.id === userId)?.role === 'administrador' || data.members.some(member => member.team_id === team.id && member.user_id === userId && member.active))
-  const isCustomBoard = activeBoard && activeBoard.type === 'custom'
+
+  const operationalBoards = useMemo(() => {
+    const profile = data.profiles.find(p => p.id === userId)
+    const isAdmin = !profile || profile.role === 'administrador'
+    return (data.boards || []).filter(b => {
+      if (b.id === 'board-geral' || b.type === 'general' || b.type === 'sector_view') return false
+      // @ts-expect-error is_active pode estar presente em boards atualizados
+      if (b.is_active === false) return false
+      if (isAdmin) return true
+      if (b.is_shared) return true
+      if (b.team_id && allowedTeams.some(t => t.id === b.team_id)) return true
+      return false
+    })
+  }, [data.boards, data.profiles, userId, allowedTeams])
+
+  const LAST_BOARD_STORAGE_KEY = `somax_last_task_board_${userId}`
+
+  const [selectedBoardId, setSelectedBoardId] = useState<string>(() => {
+    // Se o usuário está dentro de um quadro real (não Geral), pré-seleciona ele
+    if (activeBoard && activeBoard.id !== 'board-geral' && activeBoard.type !== 'general' && activeBoard.type !== 'sector_view') {
+      return activeBoard.id
+    }
+    // No Geral, Dashboard ou lista: tenta recuperar o último quadro usado pelo usuário
+    try {
+      const saved = localStorage.getItem(LAST_BOARD_STORAGE_KEY)
+      if (saved && operationalBoards.some(b => b.id === saved)) {
+        return saved
+      }
+    } catch {
+      // fallback silencioso
+    }
+    return operationalBoards[0]?.id || ''
+  })
+
+  const currentEffectiveBoard = useMemo(() => {
+    return operationalBoards.find(b => b.id === selectedBoardId) || operationalBoards[0] || activeBoard
+  }, [operationalBoards, selectedBoardId, activeBoard])
+
+  const isCustomBoard = currentEffectiveBoard && currentEffectiveBoard.type === 'custom'
   
   const boardStages = useMemo(() => {
-    if (activeBoard) {
-      const stages = getStagesForBoard(activeBoard, data.stages, data.boardStages)
+    if (currentEffectiveBoard) {
+      const stages = getStagesForBoard(currentEffectiveBoard, data.stages, data.boardStages)
       if (stages && stages.length > 0) return stages
     }
     if (currentBoardStages && currentBoardStages.length > 0) return currentBoardStages
     return data.stages
-  }, [activeBoard, currentBoardStages, data.stages, data.boardStages])
+  }, [currentEffectiveBoard, currentBoardStages, data.stages, data.boardStages])
+
+  const effectiveBoardSprints = useMemo(() => {
+    if (currentEffectiveBoard) {
+      return data.sprints.filter(s => s.board_id === currentEffectiveBoard.id)
+    }
+    return boardSprints || []
+  }, [data.sprints, currentEffectiveBoard, boardSprints])
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [title, setTitle] = useState('')
@@ -40,7 +85,7 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
   const [priority, setPriority] = useState<Task['priority']>('media')
   const [stageId, setStageId] = useState(boardStages[0]?.id || '')
   const [due, setDue] = useState('')
-  const [teamId, setTeamId] = useState(activeBoard?.team_id || allowedTeams[0]?.id || '')
+  const [teamId, setTeamId] = useState(currentEffectiveBoard?.team_id || activeBoard?.team_id || allowedTeams[0]?.id || '')
   const [assigneeId, setAssigneeId] = useState('')
   const [sprintId, setSprintId] = useState(activeSprint?.id || '')
   const [storyPoints, setStoryPoints] = useState<number>(1)
@@ -58,6 +103,15 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
       }
     }
   }, [boardStages, stageId])
+
+  // Sincroniza sprintId quando o quadro efetivo ou a metodologia mudar
+  useEffect(() => {
+    if (currentEffectiveBoard?.methodology !== 'scrum') {
+      if (sprintId) setSprintId('')
+    } else if (sprintId && !effectiveBoardSprints.some(s => s.id === sprintId)) {
+      setSprintId('')
+    }
+  }, [currentEffectiveBoard, effectiveBoardSprints, sprintId])
 
   const isDirty = Boolean(title.trim() || description.trim() || clientId || due || tags.length > 0 || selectedTemplates.length > 0)
 
@@ -82,8 +136,8 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
     event.preventDefault()
     if (!title.trim() || !teamId || !stageId) return
     const tagList = tags
-    const targetBoardId = activeBoard && activeBoard.type === 'custom' ? activeBoard.id : null
-    const targetSprintId = isCustomBoard && activeBoard.methodology === 'scrum' ? (sprintId || null) : null
+    const targetBoardId = currentEffectiveBoard?.id || selectedBoardId || operationalBoards[0]?.id
+    const targetSprintId = isCustomBoard && currentEffectiveBoard?.methodology === 'scrum' ? (sprintId || null) : null
     const targetStage = boardStages.find(s => s.id === stageId)
     const isFinal = Boolean(targetStage?.is_final)
 
@@ -106,7 +160,7 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
         updated_at: now,
         board_id: targetBoardId,
         sprint_id: targetSprintId,
-        story_points: isCustomBoard && activeBoard.methodology === 'scrum' ? storyPoints : 0,
+        story_points: isCustomBoard && currentEffectiveBoard?.methodology === 'scrum' ? storyPoints : 0,
       }, selectedTemplates)
 
       if (createAnother) {
@@ -166,8 +220,8 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h2 style={{ margin: 0, fontSize: 18 }}>Nova Tarefa</h2>
               <span className="modal-pill-board" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: activeBoard?.color || '#2563eb' }} />
-                Quadro: <strong>{activeBoard ? activeBoard.name : 'Geral'}</strong>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: currentEffectiveBoard?.color || '#2563eb' }} />
+                Quadro: <strong>{currentEffectiveBoard ? currentEffectiveBoard.name : 'Geral'}</strong>
               </span>
             </div>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted, #64748b)' }}>Preencha os campos para criar uma nova tarefa.</p>
@@ -177,6 +231,44 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
 
         <form onSubmit={event => void submit(event, false)} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div className="new-task-v2-body">
+            {/* Cascata: Quadro e Etapa obrigatórios */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label className="task-detail-field-v2">
+                <span>Quadro *</span>
+                <select
+                  required
+                  value={selectedBoardId}
+                  onChange={event => {
+                    const newId = event.target.value
+                    setSelectedBoardId(newId)
+                    try {
+                      localStorage.setItem(LAST_BOARD_STORAGE_KEY, newId)
+                    } catch {
+                      // fallback silencioso
+                    }
+                    const b = operationalBoards.find(board => board.id === newId)
+                    if (b?.team_id) {
+                      setTeamId(b.team_id)
+                      setAssigneeId('')
+                    }
+                  }}
+                >
+                  {operationalBoards.map(board => (
+                    <option key={board.id} value={board.id}>
+                      {board.name} ({board.methodology === 'scrum' ? 'Scrum' : 'Kanban'})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="task-detail-field-v2">
+                <span>Etapa *</span>
+                <select required value={stageId} onChange={event => setStageId(event.target.value)}>
+                  {boardStages.map(stage => <option key={stage.id} value={stage.id}>● {stage.name}</option>)}
+                </select>
+              </label>
+            </div>
+
             <label className="task-detail-field-v2">
               <span>Título *</span>
               <input ref={titleInputRef} required autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder="Ex: Ajustar layout de faturamento" />
@@ -186,21 +278,6 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
               <span>Descrição</span>
               <textarea rows={3} value={description} onChange={event => setDescription(event.target.value)} placeholder="Detalhes, especificações e contexto da tarefa..." style={{ padding: '8px 10px', fontSize: 12, border: '1px solid var(--border-main, #cbd5e1)', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit' }} />
             </label>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <label className="task-detail-field-v2">
-                <span>Etapa</span>
-                <select value={stageId} onChange={event => setStageId(event.target.value)}>
-                  {boardStages.map(stage => <option key={stage.id} value={stage.id}>● {stage.name}</option>)}
-                </select>
-              </label>
-              <label className="task-detail-field-v2">
-                <span>Prioridade</span>
-                <select value={priority} onChange={event => setPriority(event.target.value as Task['priority'])}>
-                  {(Object.entries(priorityNames) as [Task['priority'], string][]).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
-                </select>
-              </label>
-            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <label className="task-detail-field-v2">
@@ -220,27 +297,34 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <label className="task-detail-field-v2">
+                <span>Prioridade</span>
+                <select value={priority} onChange={event => setPriority(event.target.value as Task['priority'])}>
+                  {(Object.entries(priorityNames) as [Task['priority'], string][]).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+                </select>
+              </label>
+              <label className="task-detail-field-v2">
                 <span>Equipe *</span>
                 <select required value={teamId} onChange={event => { setTeamId(event.target.value); setAssigneeId('') }}>
                   {allowedTeams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
                 </select>
               </label>
-              <label className="task-detail-field-v2">
-                <span>Responsável</span>
-                <select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}>
-                  <option value="">Sem responsável</option>
-                  {eligible.map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
-                </select>
-              </label>
             </div>
 
-            {activeBoard?.methodology === 'scrum' && (
+            <label className="task-detail-field-v2">
+              <span>Responsável</span>
+              <select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}>
+                <option value="">Sem responsável</option>
+                {eligible.map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
+              </select>
+            </label>
+
+            {currentEffectiveBoard?.methodology === 'scrum' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <label className="task-detail-field-v2">
                   <span>Sprint (Scrum)</span>
                   <select value={sprintId} onChange={event => setSprintId(event.target.value)}>
                     <option value="">No Backlog (sem sprint)</option>
-                    {(boardSprints || []).filter(s => s.status !== 'completed').map(s => (
+                    {(effectiveBoardSprints || []).filter(s => s.status !== 'completed').map(s => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.status === 'active' ? 'Ativa' : 'Planejada'})
                       </option>
@@ -316,7 +400,7 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
                   const count = data.templateItems.filter(item => item.group_id === group.id).length
                   const isChecked = selectedTemplates.includes(group.id)
                   return (
-                    <label key={group.id} className="template-checkbox-item-v2" style={{ background: isChecked ? '#eff6ff' : undefined, borderColor: isChecked ? '#bfdbfe' : undefined }}>
+                    <label key={group.id} className={`template-checkbox-item-v2 ${isChecked ? 'is-checked' : ''}`}>
                       <input
                         type="checkbox"
                         checked={isChecked}

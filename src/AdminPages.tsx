@@ -781,7 +781,7 @@ export function ClientsPage({
 
 export function TeamsPage({data,canAdmin,canManageTeam,preview,setData,run,notify,userId}:BaseProps&{canAdmin:boolean;canManageTeam:(id:string)=>boolean;userId:string}){
   const [selected,setSelected]=useState<Team|null>(null)
-  const [editing,setEditing]=useState<Team|null|undefined>(()=>preview&&new URLSearchParams(window.location.search).has('nova-equipe')?null:undefined)
+  const [editing,setEditing]=useState<Team|null|undefined>(()=>typeof window !== 'undefined' && preview && new URLSearchParams(window.location.search).has('nova-equipe')?null:undefined)
   const [name,setName]=useState('')
   const [color,setColor]=useState('#6366f1')
   const [error,setError]=useState('')
@@ -802,6 +802,51 @@ export function TeamsPage({data,canAdmin,canManageTeam,preview,setData,run,notif
     setBusy(false)
     if(ok)setEditing(undefined)
   }
+  async function deleteTeam(team:Team){
+    if(!team||!team.id)return
+    const linkedTasks=data.tasks.filter(t=>t.team_id===team.id)
+    if(linkedTasks.length>0){
+      alert(`Não é possível excluir a equipe "${team.name}" pois existem ${linkedTasks.length} tarefa(s) vinculada(s) a ela. Reatribua ou finalize essas tarefas antes de excluir.`)
+      return
+    }
+    if(!window.confirm(`Tem certeza que deseja excluir a equipe "${team.name}"? Os membros e canais vinculados serão removidos.`))return
+    if(preview){
+      setData(current=>({
+        ...current,
+        teams:current.teams.filter(t=>t.id!==team.id),
+        members:current.members.filter(m=>m.team_id!==team.id),
+        channels:current.channels.filter(c=>c.team_id!==team.id),
+        boards:current.boards.filter(b=>b.team_id!==team.id),
+      }))
+      setSelected(null)
+      setEditing(undefined)
+      notify('Equipe excluída com sucesso.')
+      return
+    }
+    setBusy(true)
+    const ok=await run(async()=>{
+      const {error:rpcError}=await supabase.rpc('delete_team',{p_team_id:team.id})
+      if(rpcError){
+        await supabase.from('team_members').delete().eq('team_id',team.id)
+        await supabase.from('channels').delete().eq('team_id',team.id)
+        await supabase.from('boards').delete().eq('team_id',team.id)
+        const {error:delError}=await supabase.from('teams').delete().eq('id',team.id)
+        if(delError)throw delError
+      }
+      setData(current=>({
+        ...current,
+        teams:current.teams.filter(t=>t.id!==team.id),
+        members:current.members.filter(m=>m.team_id!==team.id),
+        channels:current.channels.filter(c=>c.team_id!==team.id),
+        boards:current.boards.filter(b=>b.team_id!==team.id),
+      }))
+    },'Equipe excluída com sucesso')
+    setBusy(false)
+    if(ok){
+      setSelected(null)
+      setEditing(undefined)
+    }
+  }
   async function toggleMember(teamId:string,memberId:string,active:boolean){
     if (!teamId || !memberId) return
     if(preview){setData(current=>({...current,members:current.members.map(item=>item.team_id===teamId&&item.user_id===memberId?{...item,active:!active}:item)}));return}
@@ -809,13 +854,13 @@ export function TeamsPage({data,canAdmin,canManageTeam,preview,setData,run,notif
   }
   return <section className="content"><div className="page-heading"><div><div className="eyebrow">PESSOAS</div><h1>Equipes</h1><p>Times que fazem a Somax acontecer.</p></div>{canAdmin&&<button className="btn btn-primary" onClick={()=>openEditor(null)}><Plus size={16}/> Nova equipe</button>}</div>
     <div className="team-grid">{data.teams.map(team=>{const members=data.members.filter(item=>item.team_id===team.id&&item.active);return <button key={team.id} className="team-card" onClick={()=>setSelected(team)}><div className="team-icon" style={{background:team.color}}>{initials(team.name)}</div><h2>{team.name}</h2><p>{members.length} {members.length===1?'membro':'membros'}</p><div className="team-avatars">{members.slice(0,4).map(member=><span className="avatar avatar-xs" key={member.user_id}>{initials(data.profiles.find(person=>person.id===member.user_id)?.full_name||'?')}</span>)}</div><span className="team-view">Ver equipe <ArrowRight size={15}/></span></button>})}</div>
-    {selected&&<Modal title={selected.name} onClose={()=>setSelected(null)}><div className="team-members"><div className="team-modal-head"><span>{data.members.filter(item=>item.team_id===selected.id&&item.active).length} membros ativos</span>{(preview||canManageTeam(selected.id))&&<button className="text-link" onClick={()=>openEditor(selected)}>Editar equipe</button>}</div>{data.members.filter(member=>member.team_id===selected.id).map(member=><div className="member-row" key={member.user_id}><span className="avatar avatar-xs">{initials(data.profiles.find(person=>person.id===member.user_id)?.full_name||'?')}</span><div><strong>{data.profiles.find(person=>person.id===member.user_id)?.full_name}</strong><small>{member.is_manager?'Gestor':'Colaborador'} · {member.active?'Ativo':'Inativo'}</small></div>{(preview||canManageTeam(selected.id))&&<button className="text-link" onClick={()=>void toggleMember(selected.id,member.user_id,member.active)}>{member.active?'Desativar':'Ativar'}</button>}</div>)}{!data.members.some(member=>member.team_id===selected.id)&&<Empty text="Ainda não há membros nesta equipe."/>}</div></Modal>}
-    {editing!==undefined&&<Modal title={editing?'Editar equipe':'Nova equipe'} onClose={()=>setEditing(undefined)} dirty={Boolean(name.trim())}><form className="stack-form" onSubmit={event=>void save(event)}><Field label="Nome da equipe *"><input required autoFocus maxLength={80} value={name} onChange={event=>setName(event.target.value)} placeholder="Ex.: Suporte"/></Field><Field label="Cor"><input className="team-color-input" type="color" value={color} onChange={event=>setColor(event.target.value)}/></Field>{!editing&&<p className="hint">A equipe terá um canal privado Geral e você será seu gestor.</p>}{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="btn btn-secondary" onClick={()=>setEditing(undefined)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Salvando...':editing?'Salvar equipe':'Criar equipe'}</button></div></form></Modal>}
+    {selected&&<Modal title={selected.name} onClose={()=>setSelected(null)}><div className="team-members"><div className="team-modal-head"><span>{data.members.filter(item=>item.team_id===selected.id&&item.active).length} membros ativos</span><div style={{display:'flex',gap:10,alignItems:'center'}}>{(preview||canManageTeam(selected.id))&&<button className="text-link" onClick={()=>openEditor(selected)}>Editar equipe</button>}{(preview||canAdmin)&&<button className="text-link text-danger" style={{color:'var(--chip-danger-text)'}} onClick={()=>void deleteTeam(selected)}>Excluir equipe</button>}</div></div>{data.members.filter(member=>member.team_id===selected.id).map(member=><div className="member-row" key={member.user_id}><span className="avatar avatar-xs">{initials(data.profiles.find(person=>person.id===member.user_id)?.full_name||'?')}</span><div><strong>{data.profiles.find(person=>person.id===member.user_id)?.full_name}</strong><small>{member.is_manager?'Gestor':'Colaborador'} · {member.active?'Ativo':'Inativo'}</small></div>{(preview||canManageTeam(selected.id))&&<button className="text-link" onClick={()=>void toggleMember(selected.id,member.user_id,member.active)}>{member.active?'Desativar':'Ativar'}</button>}</div>)}{!data.members.some(member=>member.team_id===selected.id)&&<Empty text="Ainda não há membros nesta equipe."/>}</div></Modal>}
+    {editing!==undefined&&<Modal title={editing?'Editar equipe':'Nova equipe'} onClose={()=>setEditing(undefined)} dirty={Boolean(name.trim())}><form className="stack-form" onSubmit={event=>void save(event)}><Field label="Nome da equipe *"><input required autoFocus maxLength={80} value={name} onChange={event=>setName(event.target.value)} placeholder="Ex.: Suporte"/></Field><Field label="Cor"><input className="team-color-input" type="color" value={color} onChange={event=>setColor(event.target.value)}/></Field>{!editing&&<p className="hint">A equipe terá um canal privado Geral e você será seu gestor.</p>}{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div>{editing&&(preview||canAdmin)&&<button type="button" className="btn btn-ghost text-danger" style={{color:'var(--chip-danger-text)'}} onClick={()=>void deleteTeam(editing)} disabled={busy}>Excluir equipe</button>}</div><div style={{display:'flex',gap:8}}><button type="button" className="btn btn-secondary" onClick={()=>setEditing(undefined)} disabled={busy}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Salvando...':editing?'Salvar equipe':'Criar equipe'}</button></div></div></form></Modal>}
   </section>
 }
 
 export function UsersPage({data,canAdmin,canMaster,currentUserId,canManageTeam,preview,setData,run,notify,setError,onUserSaved}:BaseProps&{canAdmin:boolean;canMaster:boolean;currentUserId:string;canManageTeam:(id:string)=>boolean;setError:(message:string)=>void;onUserSaved:(user:Profile)=>void}){
-  const [creating,setCreating]=useState(()=>preview&&new URLSearchParams(window.location.search).has('novo-usuario'))
+  const [creating,setCreating]=useState(()=>typeof window !== 'undefined' && preview && new URLSearchParams(window.location.search).has('novo-usuario'))
   const [editing,setEditing]=useState<Profile|null>(null)
   const [name,setName]=useState('')
   const [email,setEmail]=useState('')
@@ -845,9 +890,71 @@ export function UsersPage({data,canAdmin,canMaster,currentUserId,canManageTeam,p
       await run(async()=>{},'Usuário criado. Entregue a senha temporária por um canal seguro.')
     }catch(error){setError(messageError(error))}finally{setBusy(false)}
   }
+  async function deleteUser(person:Profile){
+    if(!person||!person.id)return
+    if(person.is_master){
+      alert('Não é permitido excluir o Administrador Master da organização.')
+      return
+    }
+    if(person.id===currentUserId){
+      alert('Você não pode excluir seu próprio usuário logado.')
+      return
+    }
+    if(!canMaster&&person.role==='administrador'){
+      alert('Apenas o Administrador Master pode excluir outro administrador.')
+      return
+    }
+    const assignedTasks=data.tasks.filter(t=>t.assignee_id===person.id)
+    const promptMessage=assignedTasks.length>0
+      ? `O usuário "${person.full_name}" possui ${assignedTasks.length} tarefa(s) atribuída(s) a ele. Ao excluir, essas tarefas ficarão sem responsável.\n\nDeseja realmente excluir este usuário?`
+      : `Tem certeza que deseja excluir o usuário "${person.full_name}"? O acesso ao sistema será revogado e os vínculos de equipe removidos.`
+    if(!window.confirm(promptMessage))return
+    if(preview){
+      setData(current=>({
+        ...current,
+        profiles:current.profiles.filter(p=>p.id!==person.id),
+        members:current.members.filter(m=>m.user_id!==person.id),
+        tasks:current.tasks.map(t=>t.assignee_id===person.id?{...t,assignee_id:null}:t),
+      }))
+      setEditing(null)
+      notify('Usuário excluído com sucesso.')
+      return
+    }
+    setBusy(true)
+    try{
+      const {data:result,error:invokeError}=await supabase.functions.invoke('manage-user',{body:{action:'delete',user_id:person.id}})
+      if(invokeError)throw invokeError
+      if(result?.error)throw new Error(result.error)
+      setData(current=>({
+        ...current,
+        profiles:current.profiles.filter(p=>p.id!==person.id),
+        members:current.members.filter(m=>m.user_id!==person.id),
+        tasks:current.tasks.map(t=>t.assignee_id===person.id?{...t,assignee_id:null}:t),
+      }))
+      setEditing(null)
+      notify('Usuário excluído com sucesso.')
+    }catch(err){
+      try{
+        const {error:rpcError}=await supabase.rpc('delete_managed_user',{p_user_id:person.id})
+        if(rpcError)throw rpcError
+        setData(current=>({
+          ...current,
+          profiles:current.profiles.filter(p=>p.id!==person.id),
+          members:current.members.filter(m=>m.user_id!==person.id),
+          tasks:current.tasks.map(t=>t.assignee_id===person.id?{...t,assignee_id:null}:t),
+        }))
+        setEditing(null)
+        notify('Usuário excluído com sucesso.')
+      }catch(innerErr){
+        setError(messageError(err||innerErr))
+      }
+    }finally{
+      setBusy(false)
+    }
+  }
   return <section className="content"><div className="page-heading"><div><div className="eyebrow">ACESSO</div><h1>Usuários</h1><p>Gerencie os acessos por função e equipe.</p></div>{manageable.length>0&&<button className="btn btn-primary" onClick={open}><Plus size={16}/> Novo usuário</button>}</div>
-    <div className="table-wrap"><table className="data-table"><thead><tr><th>Usuário</th><th>E-mail</th><th>WhatsApp</th><th>Função</th><th>Equipe</th><th>Status</th>{canAdmin&&<th>Ações</th>}</tr></thead><tbody>{data.profiles.map(person=><tr key={person.id}><td><div className="user-cell"><span className="avatar avatar-xs">{initials(person.full_name)}</span><strong>{person.full_name}</strong></div></td><td>{person.email||'—'}</td><td>{person.whatsapp||'—'}</td><td><span className="role-pill">{person.is_master?'Administrador master':roleNames[person.role]}</span></td><td>{data.members.filter(member=>member.user_id===person.id&&member.active).map(member=>data.teams.find(team=>team.id===member.team_id)?.name).join(', ')||'—'}</td><td><span className={`status ${person.active?'active':'inactive'}`}>{person.active?'Ativo':'Inativo'}</span></td>{canAdmin&&<td>{(canMaster || (person.role !== 'administrador' && !person.is_master) || person.id === currentUserId) && <button className="text-link" onClick={()=>setEditing(person)}>Editar</button>}</td>}</tr>)}</tbody></table></div>
+    <div className="table-wrap"><table className="data-table"><thead><tr><th>Usuário</th><th>E-mail</th><th>WhatsApp</th><th>Função</th><th>Equipe</th><th>Status</th>{canAdmin&&<th>Ações</th>}</tr></thead><tbody>{data.profiles.map(person=><tr key={person.id}><td><div className="user-cell"><span className="avatar avatar-xs">{initials(person.full_name)}</span><strong>{person.full_name}</strong></div></td><td>{person.email||'—'}</td><td>{person.whatsapp||'—'}</td><td><span className="role-pill">{person.is_master?'Administrador master':roleNames[person.role]}</span></td><td>{data.members.filter(member=>member.user_id===person.id&&member.active).map(member=>data.teams.find(team=>team.id===member.team_id)?.name).join(', ')||'—'}</td><td><span className={`status ${person.active?'active':'inactive'}`}>{person.active?'Ativo':'Inativo'}</span></td>{canAdmin&&<td><div style={{display:'flex',gap:10,alignItems:'center'}}>{(canMaster || (person.role !== 'administrador' && !person.is_master) || person.id === currentUserId) && <button className="text-link" onClick={()=>setEditing(person)}>Editar</button>}{person.id !== currentUserId && !person.is_master && (canMaster || person.role !== 'administrador') && <button className="text-link text-danger" style={{color:'var(--chip-danger-text)'}} onClick={()=>void deleteUser(person)}>Excluir</button>}</div></td>}</tr>)}</tbody></table></div>
     {creating&&<Modal title="Criar Novo Usuário" onClose={close} dirty={Boolean(name.trim()||email.trim()||password.trim()||whatsapp.trim())}><form className="stack-form" onSubmit={event=>void create(event)}><p className="admin-form-intro">Preencha os dados para criar um novo usuário no sistema.</p><Field label="Nome Completo *"><input required autoFocus maxLength={120} value={name} onChange={event=>setName(event.target.value)} placeholder="Nome do usuário"/></Field><Field label="E-mail *"><input required type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="email@exemplo.com"/></Field><Field label="Senha temporária *"><PasswordInput required minLength={8} maxLength={128} autoComplete="new-password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="Mínimo 8 caracteres"/></Field><Field label="WhatsApp *"><input required type="tel" value={whatsapp} onChange={event=>setWhatsapp(maskPhone(event.target.value))} placeholder="(00) 00000-0000"/></Field><Field label="Função *"><select required value={role} onChange={event=>setRole(event.target.value as Profile['role'])}><option value="colaborador">Colaborador</option><option value="gestor">Gestor</option>{canAdmin&&<option value="administrador">Administrador</option>}</select></Field><Field label="Equipe *"><select required value={teamId} onChange={event=>setTeamId(event.target.value)}>{manageable.map(team=><option key={team.id} value={team.id}>{team.name}</option>)}</select></Field><p className="hint">A senha é temporária e será trocada no primeiro acesso. Ela não aparece na lista de usuários.</p>{formError&&<p className="form-error" role="alert">{formError}</p>}<div className="form-actions"><button type="button" className="btn btn-secondary" onClick={close}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Criando...':'Criar usuário'}</button></div></form></Modal>}
-    {editing&&<UserEditor key={editing.id} user={editing} data={data} preview={preview} canMaster={canMaster} currentUserId={currentUserId} setData={setData} run={run} notify={notify} onSaved={onUserSaved} onClose={()=>setEditing(null)}/>}
+    {editing&&<UserEditor key={editing.id} user={editing} data={data} preview={preview} canMaster={canMaster} currentUserId={currentUserId} setData={setData} run={run} notify={notify} onSaved={onUserSaved} onDelete={deleteUser} onClose={()=>setEditing(null)}/>}
   </section>
 }

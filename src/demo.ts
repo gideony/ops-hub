@@ -1,4 +1,5 @@
 import type { Board, BoardStage, Channel, Checklist, ChecklistTemplateGroup, ChecklistTemplateItem, Client, ClientRegistrationLink, ClientRegistrationSubmission, Member, Profile, Sprint, Stage, Tag, Task, TaskLineageEvent, Team, Template, Transition } from './lib'
+import { DEFAULT_BOARD_TEMPLATES } from './lib'
 
 export const demoUserId = 'demo-admin'
 const profiles: Profile[] = [
@@ -74,7 +75,7 @@ function task(
   root_task_id: string | null = null,
   forwarded_at: string | null = null,
   forwarded_by: string | null = null,
-  board_id: string | null = null
+  board_id: string | null = 'board-geral-legado'
 ): Task {
   return {
     id,
@@ -83,7 +84,7 @@ function task(
     team_id,
     assignee_id,
     client_id,
-    stage_id: stages[stage].id,
+    stage_id: `bstage-legado-${stage}`,
     priority,
     due_at: due === null ? null : isoOffset(due),
     tags,
@@ -95,7 +96,7 @@ function task(
     root_task_id: root_task_id || id,
     forwarded_at,
     forwarded_by,
-    board_id
+    board_id: board_id || 'board-geral-legado'
   }
 }
 const tasks:Task[] = [
@@ -131,7 +132,44 @@ const defaultTags = [
   'Urgente',
 ]
 const tags:Tag[]=[...new Set([...defaultTags, ...tasks.flatMap(task=>task.tags)])].sort((a,b)=>a.localeCompare(b,'pt-BR')).map((name,index)=>({id:`tag-${index}`,name,color:tagPalette[index%tagPalette.length]}))
-const channels:Channel[] = teams.map(team=>({id:`channel-${team.id}`,team_id:team.id,name:'Geral',created_at:now}))
+const channels: Channel[] = [
+  ...teams.map(team => ({
+    id: `channel-${team.id}`,
+    team_id: team.id,
+    name: 'Geral',
+    description: `Canal principal de alinhamento da equipe ${team.name}`,
+    archived_at: null,
+    is_restricted: false,
+    created_at: now
+  })),
+  {
+    id: 'channel-comercial-projetos',
+    team_id: 'team-comercial',
+    name: 'Projetos e Propostas',
+    description: 'Acompanhamento de orçamentos e novas oportunidades',
+    archived_at: null,
+    is_restricted: false,
+    created_at: now
+  },
+  {
+    id: 'channel-desenvolvimento-sprints',
+    team_id: 'team-desenvolvimento',
+    name: 'Sprints e Entregas',
+    description: 'Planejamento e status dos ciclos de desenvolvimento',
+    archived_at: null,
+    is_restricted: false,
+    created_at: now
+  },
+  {
+    id: 'channel-comercial-arquivo',
+    team_id: 'team-comercial',
+    name: 'Planejamento Q1 2025',
+    description: 'Canal arquivado de metas passadas',
+    archived_at: '2026-01-15T10:00:00Z',
+    is_restricted: false,
+    created_at: '2025-01-01T08:00:00Z'
+  }
+]
 const templateDefinitions: { name: string; items: string[] }[] = [
   {
     name: 'BRANDKIT',
@@ -379,9 +417,36 @@ const boards: Board[] = [
     created_at: now,
     updated_at: now,
   },
+  {
+    id: 'board-geral-legado',
+    name: 'Geral (legado)',
+    description: 'Quadro corporativo que abriga as tarefas históricas do antigo fluxo Geral canônico.',
+    type: 'custom',
+    methodology: 'kanban',
+    team_id: null,
+    is_shared: true,
+    stage_ids: [],
+    position: 6,
+    color: '#6366f1',
+    created_by: demoUserId,
+    created_at: now,
+    updated_at: now,
+  },
 ]
 
 const boardStages: BoardStage[] = [
+  // Geral (legado) - 15 etapas copiadas de stages
+  ...stages.map((stg, idx) => ({
+    id: `bstage-legado-${idx}`,
+    board_id: 'board-geral-legado',
+    name: stg.name,
+    color: stg.color || '#3b82f6',
+    position: idx,
+    wip_limit: null,
+    is_final: stg.is_final,
+    created_at: now,
+  })),
+
   // Suporte N1
   { id: 'bstage-sup-1', board_id: 'board-suporte-n1', name: 'Tarefas', color: '#94a3b8', position: 0, wip_limit: null, is_final: false, created_at: now },
   { id: 'bstage-sup-2', board_id: 'board-suporte-n1', name: 'Em andamento', color: '#3b82f6', position: 1, wip_limit: 2, is_final: false, created_at: now },
@@ -837,6 +902,7 @@ export const demoData = {
   boards,
   boardStages,
   sprints,
+  boardTemplates: [...DEFAULT_BOARD_TEMPLATES],
   registrationLinks: demoRegistrationLinks,
   registrationSubmissions: demoRegistrationSubmissions,
 }
@@ -894,10 +960,10 @@ export const initialDemoLineageEvents: Record<string, TaskLineageEvent[]> = {
       id: 'evt-008-1',
       root_task_id: 'tarefa-008',
       task_id: 'tarefa-008',
-      board_id: 'board-geral',
-      board_name: 'Geral',
+      board_id: 'board-geral-legado',
+      board_name: 'Geral (legado)',
       board_color: '#6366f1',
-      stage_id: 'stage-1',
+      stage_id: 'bstage-legado-1',
       stage_name: 'Negociação',
       event_type: 'created',
       actor_id: demoUserId,
@@ -908,10 +974,10 @@ export const initialDemoLineageEvents: Record<string, TaskLineageEvent[]> = {
       id: 'evt-008-2',
       root_task_id: 'tarefa-008',
       task_id: 'tarefa-008',
-      board_id: 'board-geral',
-      board_name: 'Geral',
+      board_id: 'board-geral-legado',
+      board_name: 'Geral (legado)',
       board_color: '#6366f1',
-      stage_id: 'stage-13',
+      stage_id: 'bstage-legado-13',
       stage_name: 'Faturamento',
       event_type: 'completed',
       actor_id: demoUserId,
@@ -938,10 +1004,10 @@ export const initialDemoLineageEvents: Record<string, TaskLineageEvent[]> = {
       id: 'evt-008-1',
       root_task_id: 'tarefa-008',
       task_id: 'tarefa-008',
-      board_id: 'board-geral',
-      board_name: 'Geral',
+      board_id: 'board-geral-legado',
+      board_name: 'Geral (legado)',
       board_color: '#6366f1',
-      stage_id: 'stage-1',
+      stage_id: 'bstage-legado-1',
       stage_name: 'Negociação',
       event_type: 'created',
       actor_id: demoUserId,
@@ -952,10 +1018,10 @@ export const initialDemoLineageEvents: Record<string, TaskLineageEvent[]> = {
       id: 'evt-008-2',
       root_task_id: 'tarefa-008',
       task_id: 'tarefa-008',
-      board_id: 'board-geral',
-      board_name: 'Geral',
+      board_id: 'board-geral-legado',
+      board_name: 'Geral (legado)',
       board_color: '#6366f1',
-      stage_id: 'stage-13',
+      stage_id: 'bstage-legado-13',
       stage_name: 'Faturamento',
       event_type: 'completed',
       actor_id: demoUserId,

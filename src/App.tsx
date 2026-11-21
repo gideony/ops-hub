@@ -1,20 +1,20 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { Activity, ArrowDown, ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, CircleHelp, ClipboardList, FolderKanban, GitBranch, Layers, LayoutDashboard, List, Lock, LockKeyhole, LogOut, Menu, MessageCircle, Moon, MoreHorizontal, Paperclip, Plus, Search, Send, Settings2, ShieldCheck, Sun, Tags, Trash2, Users, X, Zap } from 'lucide-react'
+import { ArrowDown, ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, CircleHelp, ClipboardList, FolderKanban, GitBranch, Layers, LayoutDashboard, List, Lock, LogOut, Menu, MessageCircle, Moon, MoreHorizontal, Plus, Search, Settings2, ShieldCheck, Sun, Tags, Trash2, Users, X, Zap } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { supabase, configured, completed, dateBR, timeBR, todayISO, taskBuckets, messageError, unreadMessageCounts, isNetworkError } from './lib'
-import type { Attachment, Board, BoardStage, Channel, Checklist, ChecklistTemplateGroup, ChecklistTemplateItem, Client, ClientRegistrationLink, ClientRegistrationSubmission, Member, Message, Profile, Read, Sprint, Stage, Tag, Task, Team, Template, Transition } from './lib'
+import { supabase, configured, completed, resolveTaskStage, dateBR, todayISO, taskBuckets, messageError, unreadChannelMetrics, isNetworkError, DEFAULT_BOARD_TEMPLATES } from './lib'
+import type { Board, BoardStage, BoardTemplate, Channel, Checklist, ChecklistTemplateGroup, ChecklistTemplateItem, Client, Member, Profile, Read, Sprint, Stage, Tag, Task, Team, Template, Transition, Data } from './lib'
 import { demoData, initialDemoChecklists } from './demo'
 import { clearUserDrafts } from './drafts'
 import NewTaskForm from './NewTaskForm'
 import TemplateEditor from './TemplateEditor'
 import TemplateTab from './TemplateTab'
+import BoardTemplateModal from './BoardTemplateModal'
 import TagEditor from './TagEditor'
 import TagTab from './TagTab'
 import TaskDetailModal from './TaskDetail'
-import FlowTab from './FlowTab'
-import StageManager from './StageManager'
+import ChatPage from './ChatPage'
 import { CreateBoardModal, EditBoardModal, SprintPlanModal } from './BoardModals'
 import { BurndownModal, CompleteSprintModal, CreateSprintModal, SprintActiveHeader, BacklogView } from './ScrumComponents'
 import { PublicClientRegistrationPage } from './PublicClientRegistrationPage'
@@ -26,20 +26,24 @@ import {
   type GeneralSituationFilter,
   type GeneralViewMode,
   canonicalStageVisuals,
+  getBoardVisual,
   getStagesForBoard,
   getUserBoardTabsOrder,
   getUserConsolidatedExpanded,
   getUserGeneralMode,
+  getUserHideEmptyColumns,
   getUserLateralBlockOrder,
   setUserBoardTabsOrder,
   setUserConsolidatedExpanded,
   setUserGeneralMode,
+  setUserHideEmptyColumns,
   setUserLateralBlockOrder,
 } from './general-views'
 import { GeneralAccordionView, GeneralLateralView, GeneralToolbar } from './GeneralViews'
 import Dashboard from './Dashboard'
 import './dashboard.css'
 import PasswordInput from './PasswordInput'
+import { getUserPreferences } from './user-preferences'
 
 const ReportsPage = lazy(() => import('./ReportsPage'))
 const ClientsPage = lazy(() => import('./AdminPages').then(m => ({ default: m.ClientsPage })))
@@ -49,26 +53,7 @@ const UserSettings = lazy(() => import('./UserSettings'))
 
 export type Page = 'dashboard' | 'reports' | 'tasks' | 'completed' | 'chat' | 'clients' | 'teams' | 'users' | 'settings'
 export type DashboardFilter = 'mine' | 'overdue' | 'soon' | 'blocked' | 'week' | null
-export type Data = {
-  profiles: Profile[]
-  teams: Team[]
-  members: Member[]
-  clients: Client[]
-  stages: Stage[]
-  transitions: Transition[]
-  templates: Template[]
-  templateGroups: ChecklistTemplateGroup[]
-  templateItems: ChecklistTemplateItem[]
-  tags: Tag[]
-  tasks: Task[]
-  channels: Channel[]
-  reads: Read[]
-  boards: Board[]
-  boardStages: BoardStage[]
-  sprints: Sprint[]
-  registrationLinks?: ClientRegistrationLink[]
-  registrationSubmissions?: ClientRegistrationSubmission[]
-}
+export type { Data } from './lib'
 const empty: Data = {
   profiles: [],
   teams: [],
@@ -86,6 +71,7 @@ const empty: Data = {
   boards: [],
   boardStages: [],
   sprints: [],
+  boardTemplates: [...DEFAULT_BOARD_TEMPLATES],
   registrationLinks: [],
   registrationSubmissions: [],
 }
@@ -119,7 +105,14 @@ export default function App() {
   const [loading, setLoading] = useState(!demoMode)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [page, setPage] = useState<Page>(()=>{if(!demoMode)return 'dashboard';const requested=new URLSearchParams(window.location.search).get('pagina');const allowed:Page[]=['dashboard','reports','tasks','completed','chat','clients','teams','users','settings'];return allowed.includes(requested as Page)?requested as Page:'tasks'})
+  const [page, setPage] = useState<Page>(() => {
+    const requested = new URLSearchParams(window.location.search).get('pagina')
+    const allowed: Page[] = ['dashboard', 'reports', 'tasks', 'completed', 'chat', 'clients', 'teams', 'users', 'settings']
+    if (allowed.includes(requested as Page)) return requested as Page
+    const userPrefs = getUserPreferences()
+    if (allowed.includes(userPrefs.startPage as Page)) return userPrefs.startPage as Page
+    return !demoMode ? 'dashboard' : 'tasks'
+  })
   const [mobileNav, setMobileNav] = useState(false)
   const [theme, setTheme] = useState<'dark'|'light'>(()=>document.documentElement.dataset.theme==='light'?'light':'dark')
   const [dashboardFilter, setDashboardFilter] = useState<DashboardFilter>(null)
@@ -128,17 +121,22 @@ export default function App() {
   const [forwardingTasks, setForwardingTasks] = useState<Task[] | null>(null)
   const [demoChecklists,setDemoChecklists] = useState<Record<string,Checklist[]>>(initialDemoChecklists)
   const [newTask, setNewTask] = useState(demoMode && new URLSearchParams(window.location.search).has('nova-tarefa'))
-  const [taskView, setTaskView] = useState<'kanban'|'lista'|'backlog'|'sprint'>('kanban')
+  const [taskView, setTaskView] = useState<'kanban'|'lista'|'backlog'|'sprint'>(() => {
+    const userPrefs = getUserPreferences()
+    return userPrefs.defaultTaskView === 'lista' ? 'lista' : 'kanban'
+  })
   const [activeBoardId, setActiveBoardId] = useState<string>(() => {
     try { return localStorage.getItem('somax_active_board') || 'board-geral' } catch { return 'board-geral' }
   })
   const [showCreateBoard, setShowCreateBoard] = useState(false)
+  const [createBoardInitialTemplate, setCreateBoardInitialTemplate] = useState<string | null>(null)
+  const [editingBoardTemplate, setEditingBoardTemplate] = useState<BoardTemplate | null | undefined>(undefined)
   const [showSprintPlan, setShowSprintPlan] = useState(false)
   const [showCreateSprintModal, setShowCreateSprintModal] = useState(false)
   const [showBurndownModal, setShowBurndownModal] = useState(false)
   const [showCompleteSprintModal, setShowCompleteSprintModal] = useState(false)
   const [editingBoard, setEditingBoard] = useState<Board | null>(null)
-  const [taskTab, setTaskTab] = useState<'tarefas'|'fluxos'|'templates'|'tags'>(()=>{const value=demoMode?new URLSearchParams(window.location.search).get('aba'):null;return value==='fluxos'||value==='templates'||value==='tags'?value:'tarefas'})
+  const [taskTab, setTaskTab] = useState<'tarefas'|'templates'|'tags'>(()=>{const value=demoMode?new URLSearchParams(window.location.search).get('aba'):null;return value==='templates'||value==='tags'?value:'tarefas'})
   const [query, setQuery] = useState('')
   const [completedQuery, setCompletedQuery] = useState('')
   const [completedBoardFilter, setCompletedBoardFilter] = useState('')
@@ -161,8 +159,42 @@ export default function App() {
   const [generalBoardFilter, setGeneralBoardFilter] = useState<string>('all')
   const [generalBlockOrder, setGeneralBlockOrder] = useState<string[]>([])
   const [generalExpandedAccordions, setGeneralExpandedAccordions] = useState<Record<string, boolean>>({})
+  const [generalHideEmptyColumnsLateral, setGeneralHideEmptyColumnsLateral] = useState<boolean>(() =>
+    getUserHideEmptyColumns(undefined, 'lateral')
+  )
+  const [generalHideEmptyColumnsConsolidado, setGeneralHideEmptyColumnsConsolidado] = useState<boolean>(() =>
+    getUserHideEmptyColumns(undefined, 'consolidado')
+  )
   const [boardTabsOrder, setBoardTabsOrder] = useState<string[]>([])
   const [dragOverTabInfo, setDragOverTabInfo] = useState<{ id: string; side: 'left' | 'right' } | null>(null)
+
+  const [chatMetrics, setChatMetrics] = useState<Record<string, { unread_count: number; mention_count: number }>>({})
+  const totalChatUnread = useMemo(() => Object.values(chatMetrics).reduce((acc, m) => acc + (m.unread_count || 0), 0), [chatMetrics])
+  const totalChatMentions = useMemo(() => Object.values(chatMetrics).reduce((acc, m) => acc + (m.mention_count || 0), 0), [chatMetrics])
+
+  useEffect(() => {
+    if (demoMode) {
+      setChatMetrics({
+        'channel-geral': { unread_count: 2, mention_count: 1 }
+      })
+      return
+    }
+    let alive = true
+    const fetchMetrics = async () => {
+      try {
+        const metrics = await unreadChannelMetrics()
+        if (alive) setChatMetrics(metrics)
+      } catch {
+        // silencioso
+      }
+    }
+    void fetchMetrics()
+    const interval = setInterval(() => { void fetchMetrics() }, 15000)
+    return () => {
+      alive = false
+      clearInterval(interval)
+    }
+  }, [demoMode, session?.user?.id])
 
   const currentUserIdRef = useRef<string | null>(null)
   const isManualSignOutRef = useRef<boolean>(false)
@@ -226,10 +258,11 @@ export default function App() {
 
     const fetchId = ++latestFetchIdRef.current
     const tables = ['profiles','teams','team_members','stages','stage_transitions','subtask_templates','checklist_template_groups','checklist_template_items','tags','channels','message_reads','boards','board_stages','sprints'] as const
-    const [metaResults, tasksResult, clientsResult] = await Promise.all([
+    const [metaResults, tasksResult, clientsResult, boardTemplatesResult] = await Promise.all([
       Promise.all(tables.map(name => supabase.from(name).select('*'))),
       supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(50),
       supabase.from('clients').select('*').order('name', { ascending: true }).limit(50),
+      supabase.from('board_templates').select('*').order('created_at', { ascending: true }),
     ])
 
     if (fetchId !== latestFetchIdRef.current) return
@@ -242,6 +275,10 @@ export default function App() {
     const [profiles,teams,members,stages,transitions,templates,templateGroups,templateItems,tags,channels,reads,boards,boardStages,sprints] = metaResults.map(r => r.data || [])
     const tasks = (tasksResult.data || []) as Task[]
     const clients = (clientsResult.data || []) as Client[]
+    const boardTemplates: BoardTemplate[] =
+      (!boardTemplatesResult.error && boardTemplatesResult.data && boardTemplatesResult.data.length > 0)
+        ? (boardTemplatesResult.data as BoardTemplate[])
+        : DEFAULT_BOARD_TEMPLATES
 
     if (fetchId !== latestFetchIdRef.current) return
 
@@ -268,6 +305,7 @@ export default function App() {
         boards: (boards as Board[]).sort((a,b)=>a.position-b.position),
         boardStages: (boardStages as BoardStage[]).sort((a,b)=>a.position-b.position),
         sprints: sprints as Sprint[],
+        boardTemplates,
       }
     })
     setProfile((profiles as Profile[]).find(p => p.id === activeUserId) || null)
@@ -429,15 +467,6 @@ export default function App() {
       return false
     }
   }
-  const stage = (id: string) => data.stages.find(s => s.id === id)
-  const team = (id: string) => data.teams.find(t => t.id === id)
-  const person = (id?: string | null) => data.profiles.find(p => p.id === id)
-  const client = (id?: string | null) => data.clients.find(c => c.id === id)
-  const canManageTeam = (id: string) => !demoMode && (profile?.role === 'administrador' || data.members.some(m => m.team_id === id && m.user_id === profile?.id && m.active && m.is_manager))
-  const canAdmin = !demoMode && profile?.role === 'administrador'
-  const canMaster = demoMode || Boolean(profile?.is_master)
-  const canCreateBoard = Boolean(canAdmin || (demoMode && (!profile || profile.role === 'administrador')) || data.members.some(m => m.user_id === profile?.id && m.active && m.is_manager))
-
   const allStages: (Stage & { board_id?: string })[] = useMemo(() => {
     return [
       ...data.stages,
@@ -453,6 +482,15 @@ export default function App() {
       })),
     ]
   }, [data.stages, data.boardStages])
+
+  const stage = (id: string) => allStages.find(s => s.id === id)
+  const team = (id: string) => data.teams.find(t => t.id === id)
+  const person = (id?: string | null) => data.profiles.find(p => p.id === id)
+  const client = (id?: string | null) => data.clients.find(c => c.id === id)
+  const canManageTeam = (id: string) => !demoMode && (profile?.role === 'administrador' || data.members.some(m => m.team_id === id && m.user_id === profile?.id && m.active && m.is_manager))
+  const canAdmin = !demoMode && profile?.role === 'administrador'
+  const canMaster = demoMode || Boolean(profile?.is_master)
+  const canCreateBoard = Boolean(canAdmin || (demoMode && (!profile || profile.role === 'administrador')) || data.members.some(m => m.user_id === profile?.id && m.active && m.is_manager))
 
   const canonicalGeneralBoard: Board = useMemo(() => ({
     id: 'board-geral',
@@ -492,6 +530,10 @@ export default function App() {
     if (profile?.id) {
       setGeneralMode(getUserGeneralMode(profile.id))
       setBoardTabsOrder(getUserBoardTabsOrder(profile.id, defaultTabIds))
+      const prefs = getUserPreferences(profile.id)
+      if (prefs.defaultTaskView) {
+        setTaskView(current => (current === 'kanban' || current === 'lista' ? prefs.defaultTaskView : current))
+      }
     }
   }, [profile?.id, defaultTabIds])
 
@@ -499,11 +541,41 @@ export default function App() {
     const ids = generalBoards.map(b => b.id)
     setGeneralBlockOrder(getUserLateralBlockOrder(profile?.id, ids))
     setGeneralExpandedAccordions(getUserConsolidatedExpanded(profile?.id, ids))
+    setGeneralHideEmptyColumnsLateral(getUserHideEmptyColumns(profile?.id, 'lateral'))
+    setGeneralHideEmptyColumnsConsolidado(getUserHideEmptyColumns(profile?.id, 'consolidado'))
   }, [profile?.id, generalBoards])
 
   function handleGeneralModeChange(newMode: GeneralViewMode) {
     setGeneralMode(newMode)
     setUserGeneralMode(profile?.id, newMode)
+  }
+
+  function handleToggleHideEmptyColumns(hide: boolean) {
+    if (generalMode === 'lateral') {
+      setGeneralHideEmptyColumnsLateral(hide)
+      setUserHideEmptyColumns(profile?.id, 'lateral', hide)
+    } else {
+      setGeneralHideEmptyColumnsConsolidado(hide)
+      setUserHideEmptyColumns(profile?.id, 'consolidado', hide)
+    }
+  }
+
+  function handleExpandAllAccordions() {
+    const next: Record<string, boolean> = {}
+    generalBoards.forEach(b => {
+      next[b.id] = true
+    })
+    setGeneralExpandedAccordions(next)
+    setUserConsolidatedExpanded(profile?.id, next)
+  }
+
+  function handleCollapseAllAccordions() {
+    const next: Record<string, boolean> = {}
+    generalBoards.forEach(b => {
+      next[b.id] = false
+    })
+    setGeneralExpandedAccordions(next)
+    setUserConsolidatedExpanded(profile?.id, next)
   }
 
   function handleGeneralBlockOrderChange(newOrder: string[]) {
@@ -600,7 +672,7 @@ export default function App() {
   }, [boardSprints])
 
   const now = todayISO()
-  const dashboard = useMemo(() => taskBuckets(data.tasks, data.stages, profile?.id), [data, profile])
+  const dashboard = useMemo(() => taskBuckets(data.tasks, data.stages, profile?.id, data.boardStages), [data, profile])
   const filteredTasks = useMemo(() => data.tasks.filter(t => {
     if (activeBoard.type === 'general') {
       if (t.board_id && t.board_id !== 'board-geral') {
@@ -1395,9 +1467,63 @@ export default function App() {
     if (demoMode) { setData(prev=>({...prev,templateGroups:prev.templateGroups.filter(item=>item.id!==group.id),templateItems:prev.templateItems.filter(item=>item.group_id!==group.id)}));flash('Template removido da prévia local');return }
     await run(async()=>{const {error}=await supabase.from('checklist_template_groups').delete().eq('id',group.id);if(error)throw error},'Template removido')
   }
+  const deleteBoardTemplate = async (template: BoardTemplate) => {
+    const tplTitle = template.title || template.name || 'Modelo'
+    if (!window.confirm(`Excluir o modelo de quadro "${tplTitle}"? Os quadros já criados a partir deste modelo não serão afetados.`)) return
+    if (demoMode) {
+      setData(prev => ({
+        ...prev,
+        boardTemplates: (prev.boardTemplates || DEFAULT_BOARD_TEMPLATES).filter(
+          item => item.id !== template.id && (item.key ? item.key !== template.key : true)
+        ),
+      }))
+      flash('Modelo de quadro removido da prévia local')
+      return
+    }
+    await run(async () => {
+      const { error } = await supabase.from('board_templates').delete().eq('id', template.id)
+      if (error) throw error
+      setData(prev => ({
+        ...prev,
+        boardTemplates: (prev.boardTemplates || DEFAULT_BOARD_TEMPLATES).filter(item => item.id !== template.id),
+      }))
+    }, 'Modelo de quadro removido')
+  }
   const saveDemoTemplate = (group:ChecklistTemplateGroup|null,name:string,description:string,items:string[]) => {
     setData(prev=>{const id=group?.id||crypto.randomUUID();const saved:ChecklistTemplateGroup={id,name,description:description||null,position:group?.position??prev.templateGroups.length+1};const templateGroups=group?prev.templateGroups.map(item=>item.id===id?saved:item):[...prev.templateGroups,saved];const templateItems:ChecklistTemplateItem[]=[...prev.templateItems.filter(item=>item.group_id!==id),...items.map((title,index)=>({id:crypto.randomUUID(),group_id:id,title,position:index+1}))];return {...prev,templateGroups,templateItems}})
     flash(group?'Template atualizado na prévia local':'Template criado na prévia local')
+  }
+  const saveDemoBoardTemplate = (
+    template: BoardTemplate | null,
+    payload: {
+      name: string
+      description: string
+      methodology: import('./lib').BoardMethodology
+      color: string
+      stages: import('./lib').BoardTemplateStage[]
+    }
+  ) => {
+    setData(prev => {
+      const id = template?.id || `tmpl-${crypto.randomUUID()}`
+      const saved: BoardTemplate = {
+        id,
+        key: template?.key || id,
+        name: payload.name,
+        title: payload.name,
+        description: payload.description || null,
+        methodology: payload.methodology,
+        color: payload.color,
+        stages: payload.stages,
+        is_builtin: template?.is_builtin ?? false,
+      }
+      const currentList = prev.boardTemplates || DEFAULT_BOARD_TEMPLATES
+      const exists = currentList.some(item => item.id === id || (template?.key && item.key === template.key))
+      const boardTemplates = exists
+        ? currentList.map(item => (item.id === id || (template?.key && item.key === template.key) ? saved : item))
+        : [...currentList, saved]
+      return { ...prev, boardTemplates }
+    })
+    flash(template ? 'Modelo de quadro atualizado na prévia local' : 'Modelo de quadro criado na prévia local')
   }
   const saveDemoTag = (tag:Tag|null,name:string,color:string) => {
     setData(prev=>{const saved:Tag={id:tag?.id||crypto.randomUUID(),name,color};return {...prev,tags:tag?prev.tags.map(item=>item.id===tag.id?saved:item):[...prev.tags,saved],tasks:tag&&tag.name!==name?prev.tasks.map(task=>({...task,tags:task.tags.map(item=>item===tag.name?name:item)})):prev.tasks}})
@@ -1447,67 +1573,7 @@ export default function App() {
         )}
 
         <div className="my-boards-grid">
-          {/* Card Canônico Geral */}
-          <div
-            className="my-board-card is-canonical is-clickable"
-            onClick={() => setActiveBoardId('board-geral')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setActiveBoardId('board-geral') }}
-            aria-label="Abrir quadro Geral"
-          >
-            <div className="my-board-card-header">
-              <div className="my-board-title-row">
-                <FolderKanban size={16} />
-                <h3>Geral</h3>
-                <span className="badge-type canonical">Canônico</span>
-                <span className="badge-methodology">Kanban</span>
-              </div>
-              <p>Quadro canônico oficial da Somax com todas as 15 etapas.</p>
-            </div>
-
-            {/* Miniatura com as colunas do quadro Geral */}
-            <div className="my-board-columns-preview" title="Etapas do quadro Geral">
-              {data.stages.slice(0, 5).map(stg => {
-                const visual = canonicalStageVisuals[stg.name]
-                const dotColor = visual ? visual.dot : (stg.color || '#3b82f6')
-                return (
-                  <span key={stg.id} className="my-board-mini-col">
-                    <i style={{ background: dotColor }} />
-                    <span>{stg.name}</span>
-                  </span>
-                )
-              })}
-              {data.stages.length > 5 && (
-                <span className="my-board-mini-col more">
-                  +{data.stages.length - 5} etapas
-                </span>
-              )}
-            </div>
-
-            <div className="my-board-card-metrics">
-              <span>{data.tasks.filter(t => !t.board_id || t.board_id === 'board-geral').length} tarefas</span>
-              <span>&bull;</span>
-              <span>{data.stages.length} etapas</span>
-              <span>&bull;</span>
-              <span className="badge-scope">Corporativo</span>
-            </div>
-
-            <div className="my-board-card-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={e => {
-                  e.stopPropagation()
-                  setActiveBoardId('board-geral')
-                }}
-              >
-                Acessar quadro <ArrowRight size={14} />
-              </button>
-            </div>
-          </div>
-
-          {/* Cards dos quadros e visões do usuário */}
+          {/* Cards dos quadros operacionais do usuário */}
           {userCustomBoards.map(board => {
             const isSector = board.type === 'sector_view'
             const boardTasks = data.tasks.filter(t => {
@@ -1635,7 +1701,7 @@ export default function App() {
                 <Plus size={22} />
               </div>
               <strong>+ Novo quadro personalizado</strong>
-              <small>Criar colunas próprias ou espelhar etapas do Geral</small>
+              <small>Criar colunas próprias ou começar de um modelo</small>
             </button>
           )}
         </div>
@@ -1647,7 +1713,6 @@ export default function App() {
     return <section className="content content-wide task-content">
       <div className="task-tabs">
         <button className={taskTab==='tarefas'?'active':''} onClick={()=>setTaskTab('tarefas')}><LayoutDashboard size={15}/> Tarefas</button>
-        <button className={taskTab==='fluxos'?'active':''} onClick={()=>setTaskTab('fluxos')}><Activity size={15}/> Fluxos</button>
         <button className={taskTab==='templates'?'active':''} onClick={()=>setTaskTab('templates')}><List size={15}/> Templates</button>
         <button className={taskTab==='tags'?'active':''} onClick={()=>setTaskTab('tags')}><Tags size={15}/> Tags</button>
         {taskTab==='tarefas'&&<div className="task-tabs-end"><Button onClick={openNewTask}><Plus size={16}/> Nova tarefa</Button></div>}
@@ -1665,7 +1730,7 @@ export default function App() {
 
               if (tabId === 'board-geral') {
                 return (
-                  <div key="board-geral" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <div key="board-geral" className="board-tab-item">
                     <button
                       type="button"
                       draggable
@@ -1676,9 +1741,9 @@ export default function App() {
                       onClick={() => setActiveBoardId('board-geral')}
                       title="Arrastar para reordenar aba ou clicar para abrir"
                     >
-                      <FolderKanban size={13} />
+                      <span className="board-tab-color-dot" style={{ background: getBoardVisual({ id: 'board-geral', name: 'Geral' }).dot }} />
                       <span>Geral</span>
-                      <span className="board-tab-tag">Canônico</span>
+                      <span className="board-tab-tag">Agregação</span>
                     </button>
                     <span className="tab-accessible-reorder">
                       {!isFirst && (
@@ -1710,7 +1775,7 @@ export default function App() {
 
               if (tabId === 'meus-quadros') {
                 return (
-                  <div key="tab-meus-quadros" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <div key="tab-meus-quadros" className="board-tab-item">
                     <button
                       type="button"
                       draggable
@@ -1756,7 +1821,7 @@ export default function App() {
               if (!b) return null
 
               return (
-                <div key={b.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <div key={b.id} className="board-tab-item">
                   <button
                     type="button"
                     draggable
@@ -1767,7 +1832,7 @@ export default function App() {
                     onClick={() => setActiveBoardId(b.id)}
                     title={`Arrastar para reordenar aba ou clicar para abrir ${b.name}`}
                   >
-                    {b.type === 'sector_view' ? <Layers size={13} /> : <FolderKanban size={13} />}
+                    <span className="board-tab-color-dot" style={{ background: getBoardVisual(b).dot }} />
                     <span>{b.name}</span>
                     {b.type === 'sector_view' && <span className="board-tab-tag">Setor</span>}
                   </button>
@@ -1870,7 +1935,7 @@ export default function App() {
           renderMyBoards()
         ) : activeBoardId === 'board-geral' ? (
           <>
-            {/* Controles da visão Geral (Lateral vs Consolidado) */}
+            {/* Camada 3: Barra consolidada de controles da visão Geral */}
             <GeneralToolbar
               mode={generalMode}
               situation={generalSituation}
@@ -1879,47 +1944,37 @@ export default function App() {
               onModeChange={handleGeneralModeChange}
               onSituationChange={setGeneralSituation}
               onBoardFilterChange={setGeneralBoardFilter}
+              hideEmptyColumns={
+                generalMode === 'lateral'
+                  ? generalHideEmptyColumnsLateral
+                  : generalHideEmptyColumnsConsolidado
+              }
+              onHideEmptyColumnsChange={handleToggleHideEmptyColumns}
+              searchQuery={query}
+              onSearchQueryChange={setQuery}
+              priorityFilter={priorityFilter}
+              onPriorityFilterChange={setPriorityFilter}
+              teamFilter={teamFilter}
+              onTeamFilterChange={setTeamFilter}
+              assigneeFilter={assigneeFilter}
+              onAssigneeFilterChange={setAssigneeFilter}
+              clientFilter={clientFilter}
+              onClientFilterChange={setClientFilter}
+              dueFilter={dueFilter}
+              onDueFilterChange={setDueFilter}
+              teams={data.teams}
+              profiles={data.profiles}
+              clients={data.clients}
+              onClearFilters={() => {
+                setPriorityFilter('')
+                setTeamFilter('')
+                setAssigneeFilter('')
+                setClientFilter('')
+                setDueFilter('')
+              }}
+              onExpandAll={handleExpandAllAccordions}
+              onCollapseAll={handleCollapseAllAccordions}
             />
-
-            {/* Filtros de busca compartilhados */}
-            <div className="task-tools">
-              <div className="search">
-                <Search size={17} />
-                <input placeholder="Buscar tarefas em todos os quadros..." value={query} onChange={e => setQuery(e.target.value)} />
-              </div>
-              <select aria-label="Filtrar prioridade" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
-                <option value="">Todas as prioridades</option>
-                {Object.entries(priorityLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select aria-label="Filtrar equipe" value={teamFilter} onChange={e => setTeamFilter(e.target.value)}>
-                <option value="">Todas as equipes</option>
-                {data.teams.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-              </select>
-            </div>
-
-            <div className="task-subtools">
-              <div className="filters">
-                <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
-                  <option value="">Responsável</option>
-                  {data.profiles.map(x => <option key={x.id} value={x.id}>{x.full_name}</option>)}
-                </select>
-                <select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
-                  <option value="">Cliente</option>
-                  {data.clients.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-                </select>
-                <select value={dueFilter} onChange={e => setDueFilter(e.target.value)}>
-                  <option value="">Prazo</option>
-                  <option value="atrasadas">Atrasadas</option>
-                  <option value="futuras">Futuras</option>
-                  <option value="sem_prazo">Sem prazo</option>
-                </select>
-                {dashboardFilter && (
-                  <button className="filter-chip" onClick={() => setDashboardFilter(null)}>
-                    Filtro: {({ mine: 'Minhas tarefas', overdue: 'Atrasadas', soon: 'Próximas', blocked: 'Bloqueadas', week: 'Concluídas na semana' })[dashboardFilter]} <X size={13} />
-                  </button>
-                )}
-              </div>
-            </div>
 
             {/* Visão selecionada pelo usuário: Lateral ou Consolidado */}
             {generalMode === 'lateral' ? (
@@ -1934,6 +1989,7 @@ export default function App() {
                 blockOrder={generalBlockOrder}
                 onBlockOrderChange={handleGeneralBlockOrderChange}
                 onTaskSelect={setSelectedTask}
+                onNavigateToBoard={setActiveBoardId}
                 moveTask={moveTask}
                 deleteTask={deleteTask}
                 person={person}
@@ -1943,6 +1999,8 @@ export default function App() {
                 allTasks={data.tasks}
                 allBoards={data.boards}
                 allClients={data.clients}
+                hideEmptyColumns={generalHideEmptyColumnsLateral}
+                onHideEmptyColumnsChange={handleToggleHideEmptyColumns}
               />
             ) : (
               <GeneralAccordionView
@@ -1968,6 +2026,8 @@ export default function App() {
                 allClients={data.clients}
                 blockOrder={generalBlockOrder}
                 onBlockOrderChange={handleGeneralBlockOrderChange}
+                hideEmptyColumns={generalHideEmptyColumnsConsolidado}
+                onHideEmptyColumnsChange={handleToggleHideEmptyColumns}
               />
             )}
           </>
@@ -2112,22 +2172,33 @@ export default function App() {
           </>
         )}
       </>}
-      {taskTab==='fluxos' && <><div className="flow-toolbar">{(canAdmin || demoMode) && <StageManager data={data} preview={demoMode} setData={setData} run={run} />}{canAdmin&&<Button variant="secondary" onClick={()=>setShowFlowSettings(true)}><Settings2 size={15}/> Configurar etapas e subtarefas</Button>}</div><FlowTab data={data} canManage={canAdmin||demoMode} preview={demoMode} setData={setData} run={run}/></>}
-      {taskTab==='templates' && <TemplateTab data={data} canManage={canAdmin||demoMode} onCreate={()=>setEditingTemplate(null)} onEdit={setEditingTemplate} onDelete={group=>void deleteTemplate(group)}/>}
+      {taskTab==='templates' && (
+        <TemplateTab
+          data={data}
+          canManage={canAdmin || demoMode}
+          onCreate={() => setEditingTemplate(null)}
+          onEdit={setEditingTemplate}
+          onDelete={group => void deleteTemplate(group)}
+          onOpenCreateBoard={templateIdOrObj => {
+            const initialId = typeof templateIdOrObj === 'object' ? (templateIdOrObj?.id || templateIdOrObj?.key) : templateIdOrObj
+            setCreateBoardInitialTemplate(initialId || null)
+            setShowCreateBoard(true)
+          }}
+          onOpenCreateBoardTemplate={() => setEditingBoardTemplate(null)}
+          onEditBoardTemplate={setEditingBoardTemplate}
+          onDeleteBoardTemplate={tpl => void deleteBoardTemplate(tpl)}
+        />
+      )}
       {taskTab==='tags' && <TagTab data={data} canManage={canAdmin||demoMode} onCreate={()=>setEditingTag(null)} onEdit={setEditingTag} onDelete={tag=>void deleteTag(tag)} onSelect={tag=>{setQuery(tag.name);setTaskTab('tarefas')}}/>}
     </section>
   }
   const renderCompleted = () => {
     const finished = data.tasks.filter(t => {
-      const isDone = completed(t, allStages) || Boolean(t.completed_at)
+      const isDone = completed(t, allStages, data.boardStages)
       if (!isDone) return false
 
       if (completedBoardFilter) {
-        if (completedBoardFilter === 'board-geral') {
-          if (t.board_id && t.board_id !== 'board-geral') return false
-        } else {
-          if (t.board_id !== completedBoardFilter) return false
-        }
+        if (t.board_id !== completedBoardFilter) return false
       }
 
       if (completedQuery) {
@@ -2164,8 +2235,7 @@ export default function App() {
             onChange={e => setCompletedBoardFilter(e.target.value)}
           >
             <option value="">Todos os quadros</option>
-            <option value="board-geral">Geral (Canônico)</option>
-            {data.boards.filter(b => b.id !== 'board-geral').map(b => (
+            {data.boards.filter(b => b.id !== 'board-geral' && b.type !== 'general' && b.type !== 'sector_view' && (b as { is_active?: boolean }).is_active !== false).map(b => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
@@ -2220,14 +2290,26 @@ export default function App() {
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <div className="brand"><strong className="brand-wordmark">SOMAX<span> HUB</span></strong></div>
       <div className="nav-label">Menu</div>
-      <nav>{nav.filter(item=>!['teams','users','settings'].includes(item.page)).map(item => <button key={item.page} onClick={() => { setPage(item.page); setMobileNav(false); if(item.page==='tasks')setTaskTab('tarefas') }} className={`nav-item ${page===item.page?'active':''}`}><item.icon size={17}/><span>{item.label}</span>{item.page==='chat' && !demoMode && <ChatBadge data={data} userId={profile?.id} />}</button>)}</nav>
+      <nav>{nav.filter(item=>!['teams','users','settings'].includes(item.page)).map(item => (
+        <button key={item.page} onClick={() => { setPage(item.page); setMobileNav(false); if(item.page==='tasks')setTaskTab('tarefas') }} className={`nav-item ${page===item.page?'active':''}`}>
+          <item.icon size={17}/>
+          <span>{item.label}</span>
+          {item.page === 'chat' && (
+            totalChatMentions > 0 ? (
+              <b className="chat-nav-badge mention" aria-label={`${totalChatMentions} menções não lidas`}>@{totalChatMentions}</b>
+            ) : totalChatUnread > 0 ? (
+              <b className="chat-nav-badge unread" aria-label={`${totalChatUnread} mensagens não lidas`}>{totalChatUnread}</b>
+            ) : null
+          )}
+        </button>
+      ))}</nav>
       <div className="nav-label nav-admin">Administração</div>
       <nav>{nav.filter(item=>['teams','users'].includes(item.page)).map(item => <button key={item.page} onClick={() => { setPage(item.page); setMobileNav(false) }} className={`nav-item ${page===item.page?'active':''}`}><item.icon size={17}/><span>{item.label}</span></button>)}</nav>
       <div className="nav-label nav-admin">Minha conta</div>
       <nav><button onClick={() => { setPage('settings'); setMobileNav(false) }} className={`nav-item ${page==='settings'?'active':''}`}><Settings2 size={17}/><span>Configurações</span></button></nav>
       <div className="sidebar-bottom"><button className="theme-toggle" onClick={()=>setTheme(current=>current==='dark'?'light':'dark')} aria-label={theme==='dark'?'Ativar modo claro':'Ativar modo escuro'}>{theme==='dark'?<Sun size={15}/>:<Moon size={15}/>}<span>{theme==='dark'?'Modo Claro':'Modo Escuro'}</span></button><div className="sidebar-account"><button className="user-card" onClick={() => {setPage('settings');setMobileNav(false)}} aria-label="Abrir meu perfil"><div className="avatar">{initials(profile?.full_name || session.user.email || 'U')}</div><span><strong>{profile?.full_name || session.user.email}</strong><small>{profile?.is_master?'Administrador master':profile?.role || 'Usuário'}</small></span></button><button className="account-signout" onClick={()=>void handleSignOut()} aria-label="Sair da conta" title="Sair da conta"><LogOut size={17}/></button></div></div>
     </aside>
-    <main className="main"><header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Abrir menu"><Menu size={21}/></button><div className="breadcrumb">Somax <span>/</span> <strong>{nav.find(n=>n.page===page)?.label}</strong></div><div className="topbar-right"><div className="topbar-date"><CalendarDays size={16}/>{new Intl.DateTimeFormat('pt-BR', {day:'numeric',month:'long',year:'numeric'}).format(new Date())}</div><button className="icon-btn" aria-label="Notificações" onClick={() => setPage('chat')}><Bell size={19}/></button><div className="avatar avatar-sm">{initials(profile?.full_name || 'U')}</div></div></header>
+    <main className="main"><header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Abrir menu"><Menu size={21}/></button><div className="breadcrumb">Somax <span>/</span> <strong>{nav.find(n=>n.page===page)?.label}</strong></div><div className="topbar-right"><div className="topbar-date"><CalendarDays size={16}/>{new Intl.DateTimeFormat('pt-BR', {day:'numeric',month:'long',year:'numeric'}).format(new Date())}</div><button className="icon-btn" aria-label={totalChatMentions > 0 ? `${totalChatMentions} menções não lidas` : totalChatUnread > 0 ? `${totalChatUnread} mensagens não lidas` : 'Notificações'} onClick={() => setPage('chat')} style={{ position: 'relative' }}><Bell size={19}/>{totalChatMentions > 0 ? <span className="chat-bell-badge mention">@{totalChatMentions}</span> : totalChatUnread > 0 ? <span className="chat-bell-badge unread">{totalChatUnread}</span> : null}</button><div className="avatar avatar-sm">{initials(profile?.full_name || 'U')}</div></div></header>
       {demoMode && <div className="demo-banner"><strong>Prévia local</strong> · Dados fictícios. Para salvar no PostgreSQL e usar o chat em tempo real, configure o Supabase conforme o README.</div>}
       {error && <div className="toast toast-error" role="alert"><span>{error}</span><div className="toast-actions"><button type="button" className="btn-toast-retry" onClick={() => { setError(''); setLoading(true); reloadWithRetry().catch(e => setError(messageError(e))).finally(() => setLoading(false)) }}>Tentar novamente</button><button onClick={()=>setError('')} aria-label="Fechar erro"><X size={16}/></button></div></div>}
       {notice && <div className="toast toast-ok" role="status"><Check size={16}/>{notice}</div>}
@@ -2258,12 +2340,24 @@ export default function App() {
       {page==='reports' && <Suspense fallback={<div className="page-loading">Carregando...</div>}><ReportsPage data={data} onTask={setSelectedTask}/></Suspense>}
       {page==='tasks' && renderTasks()}
       {page==='completed' && renderCompleted()}
-      {page==='chat' && (demoMode ? <DemoChat data={data}/> : <Chat data={data} session={session} reload={reload} setError={setError} flash={flash} canManageTeam={canManageTeam} onTask={setSelectedTask}/ >)}
+      {page==='chat' && (
+        <ChatPage
+          data={data}
+          session={session}
+          demoMode={demoMode}
+          canAdmin={Boolean(canAdmin || demoMode)}
+          canManageTeam={canManageTeam}
+          onTaskSelect={setSelectedTask}
+          onReload={reload}
+          onNotify={flash}
+          onError={setError}
+        />
+      )}
       <Suspense fallback={<div className="page-loading">Carregando...</div>}>
-        {page==='clients' && <ClientsPage data={data} canAdmin={Boolean(canAdmin||demoMode)} canManageTeam={canManageTeam} preview={demoMode} setData={setData} run={run} notify={flash} hasMore={hasMoreClients} loadMore={loadMoreClients} loadingMore={loadingMoreClients} userId={session.user.id}/ >}
-        {page==='teams' && <TeamsPage data={data} canAdmin={Boolean(canAdmin||demoMode)} canManageTeam={canManageTeam} preview={demoMode} setData={setData} run={run} notify={flash} userId={session.user.id}/ >}
-        {page==='users' && <UsersPage data={data} canAdmin={Boolean(canAdmin||demoMode)} canMaster={canMaster} currentUserId={session.user.id} canManageTeam={canManageTeam} preview={demoMode} setData={setData} run={run} notify={flash} setError={setError} onUserSaved={saved=>{if(saved.id===session.user.id)setProfile(saved)}}/ >}
-        {page==='settings' && <UserSettings key={session.user.id} profile={profile} email={session.user.email||''} teams={data.teams.filter(team=>data.members.some(member=>member.team_id===team.id&&member.user_id===session.user.id&&member.active)).map(team=>team.name)} preview={demoMode} theme={theme} onThemeChange={setTheme} onProfileSaved={saved=>{setProfile(saved);setData(current=>({...current,profiles:current.profiles.map(person=>person.id===saved.id?saved:person)}))}} notify={flash}/ >}
+        {page==='clients' && <ClientsPage data={data} canAdmin={Boolean(canAdmin||demoMode)} canManageTeam={canManageTeam} preview={demoMode} setData={setData} run={run} notify={flash} hasMore={hasMoreClients} loadMore={loadMoreClients} loadingMore={loadingMoreClients} userId={session.user.id}/>}
+        {page==='teams' && <TeamsPage data={data} canAdmin={Boolean(canAdmin||demoMode)} canManageTeam={canManageTeam} preview={demoMode} setData={setData} run={run} notify={flash} userId={session.user.id}/>}
+        {page==='users' && <UsersPage data={data} canAdmin={Boolean(canAdmin||demoMode)} canMaster={canMaster} currentUserId={session.user.id} canManageTeam={canManageTeam} preview={demoMode} setData={setData} run={run} notify={flash} setError={setError} onUserSaved={saved=>{if(saved.id===session.user.id)setProfile(saved)}}/>}
+        {page==='settings' && <UserSettings key={session.user.id} profile={profile} email={session.user.email||''} teams={data.teams.filter(team=>data.members.some(member=>member.team_id===team.id&&member.user_id===session.user.id&&member.active)).map(team=>team.name)} preview={demoMode} theme={theme} onThemeChange={setTheme} onProfileSaved={saved=>{setProfile(saved);setData(current=>({...current,profiles:current.profiles.map(person=>person.id===saved.id?saved:person)}))}} notify={flash}/>}
       </Suspense>
     </main>
     {newTask && <NewTaskForm
@@ -2319,12 +2413,28 @@ export default function App() {
     {showFlowSettings && <FlowSettings data={data} run={run} onClose={()=>setShowFlowSettings(false)}/ >}
     {editingTemplate!==undefined && <TemplateEditor key={editingTemplate?.id||'new'} data={data} group={editingTemplate} preview={demoMode} run={run} onClose={()=>setEditingTemplate(undefined)} onDemoSave={saveDemoTemplate}/ >}
     {editingTag!==undefined && <TagEditor key={editingTag?.id||'new'} data={data} tag={editingTag} preview={demoMode} run={run} onClose={()=>setEditingTag(undefined)} onDemoSave={saveDemoTag}/ >}
+    {editingBoardTemplate !== undefined && (
+      <BoardTemplateModal
+        key={editingBoardTemplate?.id || 'new-board-template'}
+        data={data}
+        template={editingBoardTemplate}
+        preview={demoMode}
+        userId={session?.user?.id}
+        run={run}
+        onClose={() => setEditingBoardTemplate(undefined)}
+        onDemoSave={saveDemoBoardTemplate}
+      />
+    )}
     {showCreateBoard && (
       <CreateBoardModal
         data={data}
         userId={session.user.id}
         canAdmin={Boolean(canAdmin || demoMode)}
-        onClose={() => setShowCreateBoard(false)}
+        initialTemplateId={createBoardInitialTemplate}
+        onClose={() => {
+          setShowCreateBoard(false)
+          setCreateBoardInitialTemplate(null)
+        }}
         onCreate={handleCreateBoard}
       />
     )}
@@ -2438,8 +2548,9 @@ function TaskCard({
   onForwardTask?: (t: Task) => void
 }) {
   const currentStages = stages || data.stages
+  const stageInfo = resolveTaskStage(task, currentStages, data.boardStages)
   const current = currentStages.find(s => s.id === task.stage_id)
-  const isFinal = Boolean(current?.is_final)
+  const isFinal = stageInfo.isFinal
   const isForwarded = Boolean(task.forwarded_at)
   const isBranch = Boolean(task.origin_task_id)
 
@@ -2465,7 +2576,7 @@ function TaskCard({
     ? assigneeName.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase()
     : null
 
-  const isOverdue = Boolean(task.due_at && !task.completed_at && new Date(task.due_at) < new Date(new Date().setHours(0,0,0,0)))
+  const isOverdue = Boolean(task.due_at && !completed(task, currentStages, data.boardStages) && new Date(task.due_at) < new Date(new Date().setHours(0,0,0,0)))
 
   function formatShortDate(dateStr: string): string {
     const d = new Date(dateStr)
@@ -2724,6 +2835,7 @@ function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTa
             const originBoardName = originTask
               ? (data.boards.find(b => b.id === (originTask.board_id || 'board-geral'))?.name || 'Geral')
               : 'Quadro anterior'
+            const stageInfo = resolveTaskStage(t, currentStages, data.boardStages)
 
             return (
               <tr key={t.id}>
@@ -2782,7 +2894,7 @@ function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTa
                 <td><span className="team-tiny"><i style={{background:team(t.team_id)?.color}}/>{team(t.team_id)?.name}</span></td>
                 <td>{person(t.assignee_id)?.full_name || '—'}</td>
                 <td>{client(t.client_id)?.name || '—'}</td>
-                <td><span className="stage-pill" style={{color:currentStages.find(s=>s.id===t.stage_id)?.color}}>{currentStages.find(s=>s.id===t.stage_id)?.name}</span></td>
+                <td><span className="stage-pill" style={{color:stageInfo.color}}>{stageInfo.name}</span></td>
                 <td><span className={`priority-badge ${t.priority}`}>{priorityLabel[t.priority]}</span></td>
                 <td>{dateBR(t.due_at)}</td>
                 <td>
@@ -2804,128 +2916,11 @@ function TaskList({tasks,data,stages,onTask,person,team,client,moveTask,deleteTa
     </div>
   )
 }
-function ChatBadge({data,userId}:{data:Data;userId?:string}) {
-  const [count,setCount]=useState(0)
-  useEffect(()=>{if(!userId)return;let live=true;const update=async()=>{try{const counts=await unreadMessageCounts();if(live)setCount(Object.values(counts).reduce((total,value)=>total+value,0))}catch{/* o chat ainda calcula suas contagens locais */}};void update();const sub=supabase.channel('chat-badge').on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},()=>void update()).subscribe();return()=>{live=false;void supabase.removeChannel(sub)}},[data.channels,userId])
-  return count>0?<span className="nav-badge">{count>99?'99+':count}</span>:null
-}
-function DemoChat({data}:{data:Data}) {
-  const [channelId,setChannelId]=useState(data.channels[0]?.id||'')
-  const [body,setBody]=useState('')
-  const [search,setSearch]=useState('')
-  const [messages,setMessages]=useState<Record<string,{id:string;author:string;body:string;time:string}[]>>({
-    'channel-comercial':[
-      {id:'1',author:'Bruno Costa',body:'Bom dia, equipe! A proposta da Nuvem Norte está pronta para revisão.',time:'09:12'},
-      {id:'2',author:'Ana Ribeiro',body:'Ótimo, @Bruno. Vou revisar ainda hoje.',time:'09:18'},
-    ],
-    'channel-desenvolvimento':[
-      {id:'3',author:'Diego Ferreira',body:'O portal da Aurora está avançando. Vamos alinhar a integração no kick-off.',time:'10:24'},
-      {id:'4',author:'Camila Martins',body:'Perfeito! Já deixei o checklist atualizado na tarefa.',time:'10:31'},
-    ],
-    'channel-design':[
-      {id:'5',author:'Elisa Souza',body:'As primeiras imagens da campanha Verdejar estão em revisão.',time:'11:05'},
-    ],
-    'channel-financeiro':[
-      {id:'6',author:'Ana Ribeiro',body:'Precisamos conferir os dados de faturamento da Aurora até sexta.',time:'14:40'},
-    ],
-  })
-  const channel=data.channels.find(c=>c.id===channelId)
-  const currentMessages = messages[channelId] || []
-  const filteredMessages = currentMessages.filter(m => {
-    if (!search.trim()) return true
-    const q = search.trim().toLowerCase()
-    return m.body.toLowerCase().includes(q) || m.author.toLowerCase().includes(q)
-  })
-  function send(e:FormEvent){e.preventDefault();if(!body.trim())return;setMessages(prev=>({...prev,[channelId]:[...(prev[channelId]||[]),{id:crypto.randomUUID(),author:'Ana Ribeiro',body:body.trim(),time:new Intl.DateTimeFormat('pt-BR',{hour:'2-digit',minute:'2-digit'}).format(new Date())}]}));setBody('')}
-  return <div className="chat-page"><div className="chat-sidebar"><div className="chat-side-head"><div className="eyebrow">COMUNICAÇÃO</div><h1>Chat</h1><p>Conversas do seu time</p></div>{data.teams.map(team=><div className="channel-group" key={team.id}><div className="channel-team"><i style={{background:team.color}}/>{team.name}</div>{data.channels.filter(c=>c.team_id===team.id).map(c=><button key={c.id} className={`channel-item ${channelId===c.id?'selected':''}`} onClick={()=>setChannelId(c.id)}><span>#</span>{c.name}</button>)}</div>)}</div><div className="conversation"><div className="conversation-head"><div className="conversation-head-left"><div className="channel-hash">#</div><div><strong>{channel?.name}</strong><span>{data.teams.find(t=>t.id===channel?.team_id)?.name} · canal privado</span></div><LockKeyhole size={16}/></div><div className="chat-search"><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar mensagens..." aria-label="Buscar mensagens"/>{search&&<button type="button" onClick={()=>setSearch('')} aria-label="Limpar busca"><X size={13}/></button>}</div></div><div className="messages"><div className="messages-inner"><div className="demo-chat-intro">Este é o início da conversa em <strong>#{channel?.name}</strong>.</div>{search&&filteredMessages.length===0?<div className="chat-search-empty"><p>Nenhuma mensagem encontrada para "{search}".</p></div>:filteredMessages.map(m=><div className="message" key={m.id}><div className="avatar avatar-xs">{initials(m.author)}</div><div className="message-content"><div className="message-meta"><strong>{m.author}</strong><time>{m.time}</time></div><div className="message-bubble">{m.body}</div></div></div>)}</div></div><form className="composer" onSubmit={send}><textarea value={body} onChange={e=>setBody(e.target.value)} placeholder={`Mensagem em #${channel?.name}...`} rows={2}/><div className="composer-actions"><span className="demo-composer-note">Mensagens desta prévia ficam só nesta página.</span><Button type="submit" disabled={!body.trim()}>Enviar <Send size={15}/></Button></div></form></div></div>
-}
-function Chat({data,session,reload,setError,flash,canManageTeam,onTask}:{data:Data;session:Session;reload:()=>Promise<void>;setError:(x:string)=>void;flash:(x:string)=>void;canManageTeam:(id:string)=>boolean;onTask:(t:Task)=>void}) {
-  const [channelId,setChannelId]=useState(''); const [messages,setMessages]=useState<Message[]>([]); const [attachments,setAttachments]=useState<Attachment[]>([]); const [body,setBody]=useState(''); const [search,setSearch]=useState(''); const [reply,setReply]=useState<Message|null>(null); const [linkTask,setLinkTask]=useState(''); const [file,setFile]=useState<File|null>(null); const [sending,setSending]=useState(false); const [hasMore,setHasMore]=useState(true); const [unread,setUnread]=useState<Record<string,number>>({}); const [creating,setCreating]=useState(false); const [newChannel,setNewChannel]=useState(''); const [mentionOpen,setMentionOpen]=useState(false); const bottomRef=useRef<HTMLDivElement>(null); const fileRef=useRef<HTMLInputElement>(null); const latestRef=useRef(''); const channelIdRef=useRef(channelId);channelIdRef.current=channelId
-  useEffect(()=>{if(!data.channels.some(c=>c.id===channelId))setChannelId(data.channels[0]?.id||'')},[data.channels,channelId])
-  const channel=data.channels.find(c=>c.id===channelId)
-  const teamUsers=data.members.filter(m=>m.team_id===channel?.team_id&&m.active).map(m=>data.profiles.find(p=>p.id===m.user_id)).filter((p):p is Profile=>Boolean(p))
-  const merge=(items:Message[])=>setMessages(prev=>{const map=new Map([...prev,...items].map(x=>[x.id,x]));return [...map.values()].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id))})
-  const filteredMessages = messages.filter(m => {
-    if (!search.trim()) return true
-    const q = search.trim().toLowerCase()
-    const author = data.profiles.find(p=>p.id===m.author_id)?.full_name?.toLowerCase() || ''
-    const matchAttachment = attachments.some(a => a.message_id === m.id && a.file_name.toLowerCase().includes(q))
-    return m.body.toLowerCase().includes(q) || author.includes(q) || matchAttachment
-  })
-  const loadAttachments=useCallback(async(ids:string[])=>{if(!ids.length)return;const {data:rows,error}=await supabase.from('attachments').select('*').in('message_id',ids);if(error){setError(error.message);return}setAttachments(prev=>{const map=new Map([...prev,...((rows||[]) as Attachment[])].map(x=>[x.id,x]));return [...map.values()]})},[setError])
-  const markRead=useCallback(async(id:string)=>{const {error}=await supabase.from('message_reads').upsert({channel_id:id,user_id:session.user.id,last_read_at:new Date().toISOString()},{onConflict:'channel_id,user_id'});if(!error)setUnread(prev=>({...prev,[id]:0}))},[session.user.id])
-  const loadLatest=useCallback(async(id:string,incremental=false)=>{
-    let items:Message[]=[]
-    if(incremental){
-      const cursor=latestRef.current
-      let offset=0
-      while(true){
-        let q=supabase.from('messages').select('*').eq('channel_id',id).order('created_at',{ascending:true}).order('id',{ascending:true}).range(offset,offset+99)
-        if(cursor)q=q.gte('created_at',cursor)
-        const {data:rows,error}=await q
-        if(error){setError(error.message);return}
-        const batch=(rows||[]) as Message[]
-        items=items.concat(batch)
-        if(batch.length<100)break
-        offset+=100
-      }
-    }else{
-      const {data:rows,error}=await supabase.from('messages').select('*').eq('channel_id',id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(30)
-      if(error){setError(error.message);return}
-      items=(rows||[]) as Message[]
-    }
-    if(channelIdRef.current!==id)return
-    if(incremental)merge(items)
-    else{setMessages(items.sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)));setHasMore(items.length===30)}
-    const max=items.map(x=>x.created_at).sort().at(-1)
-    if(max&&max>latestRef.current)latestRef.current=max
-    void loadAttachments(items.map(x=>x.id))
-    void markRead(id)
-  },[loadAttachments,markRead,setError])
-  useEffect(()=>{if(!channelId)return;setMessages([]);setAttachments([]);setHasMore(true);latestRef.current='';void loadLatest(channelId);const subscription=supabase.channel(`chat-${channelId}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`channel_id=eq.${channelId}`},payload=>{const incoming=payload.new as Message;merge([incoming]);if(incoming.created_at>latestRef.current)latestRef.current=incoming.created_at;void loadAttachments([incoming.id]);void markRead(channelId)}).on('postgres_changes',{event:'INSERT',schema:'public',table:'attachments'},payload=>{void loadAttachments([(payload.new as Attachment).message_id])}).subscribe(status=>{if(status==='SUBSCRIBED')void loadLatest(channelId,true)});const online=()=>void loadLatest(channelId,true);window.addEventListener('online',online);return()=>{window.removeEventListener('online',online);void supabase.removeChannel(subscription)}},[channelId,loadLatest,loadAttachments,markRead])
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages.length,channelId])
-  useEffect(()=>{let alive=true;const update=async()=>{try{const counts=await unreadMessageCounts();if(alive)setUnread(counts)}catch(error){if(alive)setError(messageError(error))}};void update();return()=>{alive=false}},[data.channels,session.user.id,setError])
-  async function older(){if(!channelId||!messages.length)return;const first=messages[0];const {data:rows,error}=await supabase.from('messages').select('*').eq('channel_id',channelId).lt('created_at',first.created_at).order('created_at',{ascending:false}).limit(30);if(error){setError(error.message);return}const items=(rows||[]) as Message[];setHasMore(items.length===30);merge(items);void loadAttachments(items.map(x=>x.id))}
-  async function send(e:FormEvent){
-    e.preventDefault()
-    if((!body.trim()&&!linkTask&&!file)||!channelId||sending)return
-    if(file&&file.size>10*1024*1024){setError('O anexo deve ter até 10 MB.');return}
-    setSending(true)
-    let saved=false
-    let uploadedPath=''
-    try{
-      const {data:created,error}=await supabase.from('messages').insert({channel_id:channelId,author_id:session.user.id,body:body.trim()||(file?`📎 ${file.name}`:''),reply_to_id:reply?.id||null,task_id:linkTask||null}).select('*').single()
-      if(error)throw error
-      saved=true
-      merge([created as Message])
-      if(created.created_at>latestRef.current)latestRef.current=created.created_at
-      setBody('');setReply(null);setLinkTask('')
-      await markRead(channelId)
-      if(file){
-        const path=`${session.user.id}/${channelId}/${created.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]/g,'_')}`
-        const upload=await supabase.storage.from('chat-private').upload(path,file,{contentType:file.type,upsert:false})
-        if(upload.error)throw upload.error
-        uploadedPath=path
-        const {data:attachment,error:attachError}=await supabase.from('attachments').insert({message_id:created.id,uploader_id:session.user.id,storage_path:path,file_name:file.name,content_type:file.type,size_bytes:file.size}).select('*').single()
-        if(attachError)throw attachError
-        setAttachments(prev=>[...prev,attachment as Attachment]);setFile(null)
-      }
-    }catch(err){
-      if(uploadedPath)void supabase.storage.from('chat-private').remove([uploadedPath])
-      setError(`${saved?'Mensagem salva, mas o anexo falhou':'Não foi possível enviar'}: ${messageError(err)}`)
-      if(saved)setFile(null)
-    }finally{setSending(false)}
-  }
-  async function openAttachment(a:Attachment){const {data:link,error}=await supabase.storage.from('chat-private').createSignedUrl(a.storage_path,60);if(error){setError(error.message);return}window.open(link.signedUrl,'_blank','noopener,noreferrer')}
-  async function createChannel(e:FormEvent){e.preventDefault();if(!channel||!newChannel.trim())return;const {error}=await supabase.from('channels').insert({team_id:channel.team_id,name:newChannel.trim(),created_by:session.user.id});if(error){setError(error.message);return}setCreating(false);setNewChannel('');await reload();flash('Canal criado')}
-  function renderText(text:string){return text.split(/(@[\p{L}\p{N}_]+)/gu).map((part,i)=>part.startsWith('@')?<mark key={i}>{part}</mark>:part)}
-  return <div className="chat-page"><div className="chat-sidebar"><div className="chat-side-head"><div className="eyebrow">COMUNICAÇÃO</div><h1>Chat</h1><p>Conversas do seu time</p></div>{data.teams.filter(t=>data.channels.some(c=>c.team_id===t.id)).map(t=><div className="channel-group" key={t.id}><div className="channel-team"><i style={{background:t.color}}/>{t.name}{canManageTeam(t.id)&&<button onClick={()=>{setChannelId(data.channels.find(c=>c.team_id===t.id)?.id||'');setCreating(true)}} aria-label={`Criar canal em ${t.name}`}><Plus size={15}/></button>}</div>{data.channels.filter(c=>c.team_id===t.id).map(c=><button key={c.id} className={`channel-item ${channelId===c.id?'selected':''}`} onClick={()=>setChannelId(c.id)}><span>#</span>{c.name}{unread[c.id]>0&&<b>{unread[c.id]}</b>}</button>)}</div>)}</div><div className="conversation">{channel?<><div className="conversation-head"><div className="conversation-head-left"><div className="channel-hash">#</div><div><strong>{channel.name}</strong><span>{data.teams.find(x=>x.id===channel.team_id)?.name} · canal privado</span></div><LockKeyhole size={16}/></div><div className="chat-search"><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar mensagens..." aria-label="Buscar mensagens"/>{search&&<button type="button" onClick={()=>setSearch('')} aria-label="Limpar busca"><X size={13}/></button>}</div></div><div className="messages"><div className="messages-inner">{hasMore&&messages.length>0&&<button className="older" onClick={()=>void older()}><ArrowDown size={15}/> Carregar mensagens anteriores</button>}{search&&filteredMessages.length===0?<div className="chat-search-empty"><p>Nenhuma mensagem encontrada para "{search}".</p></div>:filteredMessages.map(m=>{const author=data.profiles.find(p=>p.id===m.author_id);const linked=data.tasks.find(t=>t.id===m.task_id);const replied=messages.find(x=>x.id===m.reply_to_id);return <div className={`message ${m.author_id===session.user.id?'mine':''}`} key={m.id}><div className="avatar avatar-xs">{initials(author?.full_name||'?')}</div><div className="message-content"><div className="message-meta"><strong>{author?.full_name||'Usuário'}</strong><time>{timeBR(m.created_at)}</time></div>{replied&&<div className="reply-preview">↳ {data.profiles.find(p=>p.id===replied.author_id)?.full_name}: {replied.body.slice(0,90)}</div>}<div className="message-bubble">{renderText(m.body)}</div>{linked&&<button className="linked-task" onClick={()=>onTask(linked)}><ClipboardList size={15}/>{linked.title}<ArrowRight size={14}/></button>}{attachments.filter(a=>a.message_id===m.id).map(a=><button key={a.id} className="attachment-link" onClick={()=>void openAttachment(a)}><Paperclip size={14}/>{a.file_name}</button>)}<button className="reply-action" onClick={()=>setReply(m)}>Responder</button></div></div>})}<div ref={bottomRef}/></div></div><form className="composer" onSubmit={e=>void send(e)}>{reply&&<div className="composer-context">Respondendo a {data.profiles.find(p=>p.id===reply.author_id)?.full_name}: {reply.body.slice(0,60)}<button type="button" onClick={()=>setReply(null)}><X size={14}/></button></div>}{linkTask&&<div className="composer-context">Tarefa: {data.tasks.find(t=>t.id===linkTask)?.title}<button type="button" onClick={()=>setLinkTask('')}><X size={14}/></button></div>}{file&&<div className="composer-context"><Paperclip size={14}/>{file.name}<button type="button" onClick={()=>setFile(null)}><X size={14}/></button></div>}<textarea value={body} onChange={e=>{setBody(e.target.value);setMentionOpen(/@[^\s@]*$/.test(e.target.value))}} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send(e as unknown as FormEvent)}}} placeholder={`Mensagem em #${channel.name}...`} rows={2}/>{mentionOpen&&<div className="mention-list">{teamUsers.filter(p=>p.full_name.toLowerCase().includes(body.split('@').at(-1)?.toLowerCase()||'')).slice(0,5).map(p=><button type="button" key={p.id} onClick={()=>{setBody(body.replace(/@[^\s@]*$/,'@'+p.full_name.replace(/\s+/g,'_')+' '));setMentionOpen(false)}}>@{p.full_name}</button>)}</div>}<div className="composer-actions"><div><input ref={fileRef} type="file" hidden onChange={e=>setFile(e.target.files?.[0]||null)}/><button type="button" onClick={()=>fileRef.current?.click()} title="Anexar arquivo"><Paperclip size={17}/></button><select value="" aria-label="Vincular tarefa" onChange={e=>setLinkTask(e.target.value)}><option value="">Vincular tarefa</option>{data.tasks.filter(t=>t.team_id===channel.team_id).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}</select></div><Button type="submit" disabled={sending||(!body.trim()&&!linkTask&&!file)}>{sending?'Enviando...':'Enviar'}<Send size={15}/></Button></div></form></>:<Empty text="Selecione um canal para conversar."/>}</div>{creating&&<Modal title="Novo canal" onClose={()=>setCreating(false)}><form className="stack-form" onSubmit={e=>void createChannel(e)}><Field label="Nome do canal"><input required autoFocus value={newChannel} onChange={e=>setNewChannel(e.target.value)} placeholder="Ex.: Projetos"/></Field><div className="form-actions"><Button variant="secondary" onClick={()=>setCreating(false)}>Cancelar</Button><Button type="submit">Criar canal</Button></div></form></Modal>}</div>
-}
-
 function FlowSettings({data,run,onClose}:{data:Data;run:(action:()=>Promise<unknown>,success?:string)=>Promise<boolean>;onClose:()=>void}) {
   const [stageName,setStageName]=useState(''); const [from,setFrom]=useState(data.stages[0]?.id||''); const [to,setTo]=useState(data.stages[1]?.id||''); const [templateStage,setTemplateStage]=useState(data.stages[0]?.id||''); const [template,setTemplate]=useState('')
   return <Modal title="Configurar fluxo" onClose={onClose} wide><div className="flow-settings"><section><h3>Etapas</h3><p>O status final determina se a tarefa está concluída.</p><div className="settings-list">{data.stages.map(s=><div key={s.id}><span className="stage-color" style={{background:s.color}}/><strong>{s.name}</strong><small>{s.is_final?'Final':s.is_pause?'Pausa':`Posição ${s.position}`}</small><label><input type="checkbox" checked={s.is_final} onChange={()=>void run(async()=>{const {error}=await supabase.from('stages').update({is_final:!s.is_final}).eq('id',s.id);if(error)throw error})}/> Final</label></div>)}</div><form className="inline-form" onSubmit={e=>{e.preventDefault();void run(async()=>{const {error}=await supabase.from('stages').insert({name:stageName,position:Math.max(...data.stages.map(s=>s.position))+1});if(error)throw error;setStageName('')})}}><input required value={stageName} onChange={e=>setStageName(e.target.value)} placeholder="Nova etapa"/><button aria-label="Adicionar etapa"><Plus size={16}/></button></form></section><section><h3>Transições permitidas</h3><p>Movimentos disponíveis no menu e no Kanban.</p><div className="settings-list transitions">{data.transitions.map(t=><div key={`${t.from_stage_id}-${t.to_stage_id}`}><span>{data.stages.find(s=>s.id===t.from_stage_id)?.name} <ArrowRight size={13}/> {data.stages.find(s=>s.id===t.to_stage_id)?.name}</span><button onClick={()=>void run(async()=>{const {error}=await supabase.from('stage_transitions').delete().eq('from_stage_id',t.from_stage_id).eq('to_stage_id',t.to_stage_id);if(error)throw error})}><X size={14}/></button></div>)}</div><form className="settings-add" onSubmit={e=>{e.preventDefault();void run(async()=>{const {error}=await supabase.from('stage_transitions').insert({from_stage_id:from,to_stage_id:to});if(error)throw error})}}><select value={from} onChange={e=>setFrom(e.target.value)}>{data.stages.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><ArrowRight size={15}/><select value={to} onChange={e=>setTo(e.target.value)}>{data.stages.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button><Plus size={17}/></button></form><h3>Templates de subtarefas</h3><div className="settings-list transitions">{data.templates.map(x=><div key={x.id}><span>{data.stages.find(s=>s.id===x.stage_id)?.name} · {x.title}</span><button onClick={()=>void run(async()=>{const {error}=await supabase.from('subtask_templates').delete().eq('id',x.id);if(error)throw error})}><X size={14}/></button></div>)}</div><form className="settings-add" onSubmit={e=>{e.preventDefault();void run(async()=>{const {error}=await supabase.from('subtask_templates').insert({stage_id:templateStage,title:template,position:data.templates.filter(x=>x.stage_id===templateStage).length+1});if(error)throw error;setTemplate('')})}}><select value={templateStage} onChange={e=>setTemplateStage(e.target.value)}>{data.stages.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><input required value={template} onChange={e=>setTemplate(e.target.value)} placeholder="Subtarefa padrão"/><button><Plus size={17}/></button></form></section></div></Modal>
 }
+
 
 
 

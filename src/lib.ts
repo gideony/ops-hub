@@ -22,6 +22,111 @@ export type BoardType = 'general' | 'sector_view' | 'custom'
 export type BoardMethodology = 'kanban' | 'scrum'
 export type BoardCompletionAction = 'ask' | 'suggest_default' | 'none'
 
+export type BoardTemplateStage = {
+  name: string
+  color: string
+  wip_limit?: number | null
+  is_final: boolean
+}
+
+export type BoardTemplate = {
+  id: string
+  key?: string
+  name: string
+  title?: string
+  description: string | null
+  methodology: BoardMethodology
+  color: string
+  stages: BoardTemplateStage[]
+  is_builtin?: boolean
+  created_by?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export const DEFAULT_BOARD_TEMPLATES: BoardTemplate[] = [
+  {
+    id: 'tmpl-blank',
+    key: 'blank',
+    name: 'Em branco',
+    title: 'Em branco',
+    description: 'Quadro limpo para configurar do seu jeito',
+    methodology: 'kanban',
+    color: '#94a3b8',
+    is_builtin: true,
+    stages: [
+      { name: 'Tarefas', color: '#94a3b8', wip_limit: null, is_final: false },
+      { name: 'Em andamento', color: '#3b82f6', wip_limit: 3, is_final: false },
+      { name: 'Concluído', color: '#10b981', wip_limit: null, is_final: true },
+    ],
+  },
+  {
+    id: 'tmpl-suporte',
+    key: 'support',
+    name: 'Suporte',
+    title: 'Suporte',
+    description: 'Atendimento, triagem e resolução de chamados',
+    methodology: 'kanban',
+    color: '#0d9488',
+    is_builtin: true,
+    stages: [
+      { name: 'Tarefas', color: '#94a3b8', wip_limit: null, is_final: false },
+      { name: 'Em andamento', color: '#3b82f6', wip_limit: 3, is_final: false },
+      { name: 'Resolvido', color: '#10b981', wip_limit: null, is_final: true },
+    ],
+  },
+  {
+    id: 'tmpl-comercial',
+    key: 'commercial',
+    name: 'Comercial',
+    title: 'Comercial',
+    description: 'Funil de vendas e fechamento de novos clientes',
+    methodology: 'kanban',
+    color: '#2563eb',
+    is_builtin: true,
+    stages: [
+      { name: 'Lead', color: '#3b82f6', wip_limit: null, is_final: false },
+      { name: 'Negociações', color: '#f59e0b', wip_limit: 4, is_final: false },
+      { name: 'Follow-up', color: '#8b5cf6', wip_limit: 3, is_final: false },
+      { name: 'Assinatura de Contrato', color: '#ec4899', wip_limit: 2, is_final: false },
+      { name: 'Concluído', color: '#10b981', wip_limit: null, is_final: true },
+      { name: 'Perdido', color: '#ef4444', wip_limit: null, is_final: true },
+    ],
+  },
+  {
+    id: 'tmpl-implantacao',
+    key: 'deployment',
+    name: 'Implantação',
+    title: 'Implantação',
+    description: 'Onboarding e entrega estruturada de projetos',
+    methodology: 'kanban',
+    color: '#7c3aed',
+    is_builtin: true,
+    stages: [
+      { name: 'Kick-off', color: '#3b82f6', wip_limit: null, is_final: false },
+      { name: 'Em andamento', color: '#f59e0b', wip_limit: 3, is_final: false },
+      { name: 'Aguardando aprovação', color: '#8b5cf6', wip_limit: 2, is_final: false },
+      { name: 'Entrega', color: '#ec4899', wip_limit: 2, is_final: false },
+      { name: 'Concluído', color: '#10b981', wip_limit: null, is_final: true },
+    ],
+  },
+  {
+    id: 'tmpl-scrum',
+    key: 'scrum_default',
+    name: 'Scrum padrão',
+    title: 'Scrum padrão',
+    description: 'Ciclos com sprints, backlog e metas',
+    methodology: 'scrum',
+    color: '#6366f1',
+    is_builtin: true,
+    stages: [
+      { name: 'Tarefas', color: '#94a3b8', wip_limit: null, is_final: false },
+      { name: 'Em andamento', color: '#3b82f6', wip_limit: 3, is_final: false },
+      { name: 'Concluído', color: '#10b981', wip_limit: null, is_final: true },
+    ],
+  },
+]
+
 export type Board = {
   id: string
   name: string
@@ -157,10 +262,87 @@ export type TaskLineageEvent = {
 export type Checklist = { id: string; task_id: string; title: string; done: boolean; position: number; group_name?: string | null }
 export type TaskComment = { id: string; task_id: string; author_id: string; body: string; created_at: string }
 export type Movement = { id: string; task_id: string; from_stage_id: string | null; to_stage_id: string; moved_by: string; moved_at: string; from_stage_name?: string | null; to_stage_name?: string | null }
-export type Channel = { id: string; team_id: string; name: string; created_at: string }
-export type Message = { id: string; channel_id: string; author_id: string; body: string; reply_to_id: string | null; task_id: string | null; created_at: string }
+export type Channel = {
+  id: string
+  team_id: string
+  name: string
+  description?: string | null
+  archived_at?: string | null
+  is_restricted?: boolean
+  created_by?: string | null
+  created_at: string
+}
+export type Message = {
+  id: string
+  channel_id: string
+  author_id: string
+  body: string
+  reply_to_id: string | null
+  task_id: string | null
+  created_at: string
+  edited_at?: string | null
+  deleted_at?: string | null
+  mentions?: string[]
+  mentions_all?: boolean
+}
 export type Attachment = { id: string; message_id: string; storage_path: string; file_name: string; size_bytes: number }
 export type Read = { channel_id: string; user_id: string; last_read_at: string }
+
+export type Data = {
+  profiles: Profile[]
+  teams: Team[]
+  members: Member[]
+  clients: Client[]
+  stages: Stage[]
+  transitions: Transition[]
+  templates: Template[]
+  templateGroups: ChecklistTemplateGroup[]
+  templateItems: ChecklistTemplateItem[]
+  tags: Tag[]
+  tasks: Task[]
+  channels: Channel[]
+  reads: Read[]
+  boards: Board[]
+  boardStages: BoardStage[]
+  sprints: Sprint[]
+  boardTemplates?: BoardTemplate[]
+  registrationLinks?: ClientRegistrationLink[]
+  registrationSubmissions?: ClientRegistrationSubmission[]
+}
+
+export type ChannelMetrics = {
+  unread_count: number
+  mention_count: number
+}
+
+export async function unreadChannelMetrics(): Promise<Record<string, ChannelMetrics>> {
+  try {
+    const { data, error } = await supabase.rpc('unread_channel_metrics')
+    if (!error && data) {
+      return Object.fromEntries(
+        (data as { channel_id: string; unread_count: number; mention_count: number }[]).map(row => [
+          row.channel_id,
+          {
+            unread_count: Number(row.unread_count) || 0,
+            mention_count: Number(row.mention_count) || 0,
+          },
+        ])
+      )
+    }
+  } catch {}
+  // Fallback para unread_message_counts
+  try {
+    const counts = await unreadMessageCounts()
+    return Object.fromEntries(
+      Object.entries(counts).map(([cId, unread]) => [
+        cId,
+        { unread_count: unread, mention_count: 0 },
+      ])
+    )
+  } catch {
+    return {}
+  }
+}
 
 export async function unreadMessageCounts() {
   const { data, error } = await supabase.rpc('unread_message_counts')
@@ -169,10 +351,77 @@ export async function unreadMessageCounts() {
     .map(row => [row.channel_id, Number(row.unread_count)])) as Record<string, number>
 }
 
-export function completed(task: Task, stages: (Stage | BoardStage)[]) {
-  const stage = stages.find(s => s.id === task.stage_id)
-  if (stage) return stage.is_final === true
-  return Boolean(task.completed_at)
+export type StageDisplayInfo = {
+  id: string
+  name: string
+  color: string
+  isFinal: boolean
+  isPause: boolean
+}
+
+/**
+ * Resolução canônica de etapa para qualquer tarefa do Somax Hub (Geral ou Personalizado).
+ * Avalia prioritariamente o quadro da tarefa e suas etapas correspondentes.
+ * O fallback por completed_at só é ativado se a etapa não puder ser resolvida.
+ */
+export function resolveTaskStage(
+  task: Task,
+  stages: (Stage | BoardStage)[],
+  boardStages: BoardStage[] = []
+): StageDisplayInfo {
+  // 1. Se a tarefa pertence a um quadro customizado, busca prioritariamente em board_stages
+  if (task.board_id && task.board_id !== 'board-geral') {
+    const custom = boardStages.find(s => s.id === task.stage_id && s.board_id === task.board_id) ||
+      (stages.find(s => s.id === task.stage_id && 'board_id' in s && (s as BoardStage).board_id === task.board_id) as BoardStage | undefined)
+    if (custom) {
+      return {
+        id: custom.id,
+        name: custom.name,
+        color: custom.color,
+        isFinal: Boolean(custom.is_final),
+        isPause: false,
+      }
+    }
+  }
+
+  // 2. Busca na lista de etapas canônicas ou lista mista/unificada
+  const stage = stages.find(s => s.id === task.stage_id) || boardStages.find(s => s.id === task.stage_id)
+  if (stage) {
+    return {
+      id: stage.id,
+      name: stage.name,
+      color: stage.color,
+      isFinal: Boolean(stage.is_final),
+      isPause: Boolean('is_pause' in stage && stage.is_pause),
+    }
+  }
+
+  // 3. Fallback estrito: a etapa não pôde ser resolvida na lista de etapas
+  const hasCompletedAt = Boolean(task.completed_at)
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    console.warn(`[stages] Tarefa ${task.id} (${task.title}) em etapa não identificada: ${task.stage_id}. Fallback por completed_at: ${hasCompletedAt}`)
+  }
+
+  return {
+    id: task.stage_id,
+    name: hasCompletedAt ? 'Concluída (etapa não identificada)' : 'Etapa sem identificação',
+    color: '#94a3b8',
+    isFinal: hasCompletedAt,
+    isPause: false,
+  }
+}
+
+/**
+ * Função canônica única para determinar se uma tarefa está concluída.
+ * Usa estritamente a mesma regra de resolveTaskStage: a etapa define a conclusão.
+ * Se a tarefa foi reaberta (movida para etapa não-final), retorna false.
+ */
+export function completed(
+  task: Task,
+  stages: (Stage | BoardStage)[],
+  boardStages: BoardStage[] = []
+): boolean {
+  return resolveTaskStage(task, stages, boardStages).isFinal
 }
 export function dateBR(value?: string | null) { return value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value.slice(0, 10) + 'T12:00:00Z')) : 'Sem prazo' }
 export function timeBR(value: string) { return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Fortaleza' }).format(new Date(value)) }
@@ -207,13 +456,13 @@ export function taskBuckets(
   const soonDate = new Date(current); soonDate.setDate(soonDate.getDate()+7)
   const soon = todayISO(soonDate)
   const start = new Date(current); start.setDate(start.getDate()-(start.getDay()+6)%7); start.setHours(0,0,0,0)
-  const active = tasks.filter(t => !completed(t, allStages))
+  const active = tasks.filter(t => !completed(t, allStages, boardStages))
   return {
     mine: active.filter(t => t.assignee_id === userId),
     overdue: active.filter(t => t.due_at && t.due_at.slice(0, 10) < today),
     soon: active.filter(t => t.due_at && t.due_at.slice(0, 10) >= today && t.due_at.slice(0, 10) <= soon),
-    blocked: active.filter(t => stages.find(s => s.id === t.stage_id)?.is_pause),
-    week: tasks.filter(t => completed(t, allStages) && t.completed_at && new Date(t.completed_at) >= start),
+    blocked: active.filter(t => resolveTaskStage(t, allStages, boardStages).isPause),
+    week: tasks.filter(t => completed(t, allStages, boardStages) && t.completed_at && new Date(t.completed_at) >= start),
   }
 }
 export function isUUID(value: unknown): boolean {
@@ -237,6 +486,20 @@ export function isNetworkError(error: unknown): boolean {
     return msg.includes('Failed to fetch') || msg.includes('NetworkError')
   }
   return false
+}
+
+export function isMissingColumnError(error: unknown, columnName?: string): boolean {
+  if (!error) return false
+  const msg = typeof error === 'string'
+    ? error
+    : (error as { message?: string })?.message || (error as Error)?.message || ''
+  const lower = msg.toLowerCase()
+  const isSchemaCache = lower.includes('in the schema cache') || lower.includes('does not exist') || lower.includes('pgrst204')
+  if (!isSchemaCache) return false
+  if (columnName) {
+    return lower.includes(columnName.toLowerCase())
+  }
+  return true
 }
 
 export function messageError(error: unknown): string {

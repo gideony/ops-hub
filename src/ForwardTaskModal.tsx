@@ -180,8 +180,8 @@ export default function ForwardTaskModal({
             <div style={{
               padding: '10px 14px',
               borderRadius: 6,
-              background: 'var(--bg-muted, #f8fafc)',
-              border: '1px solid var(--border-subtle, #e2e8f0)',
+              background: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-main)',
               fontSize: 13,
               marginBottom: 12
             }}>

@@ -80,6 +80,17 @@
   --select-option-bg: #ffffff;
   --select-option-text: #0f172a;
   --input-placeholder: #64748b;
+
+  /* Aliases e superfícies adicionais */
+  --bg-surface-soft: #f8fafc;
+  --bg-muted: #f8fafc;
+  --color-primary-base: #1e40af;
+  --brand-primary: #1e40af;
+  --accent: #1e40af;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --surface-hover: #f1f5f9;
+  --bg-primary-subtle: #eff6ff;
 }
 
 :root[data-theme='dark'] {
@@ -87,9 +98,12 @@
   --bg-page: #09090b;
   --bg-surface: #18181f;
   --bg-surface-subtle: #1c1c24;
+  --bg-surface-soft: #141418;
   --bg-surface-hover: #23232e;
   --bg-field: #1f1f23;
   --bg-field-hover: #26262d;
+  --surface-hover: #23232e;
+  --bg-primary-subtle: #1e243c;
 
   /* Bordas e divisores */
   --border-main: #2a2a34;
@@ -109,6 +123,12 @@
   --primary-subtle: #1e243c;
   --primary-text: #93c5fd;
   --primary-contrast: #ffffff;  /* Contraste em #5556d8: 5.7:1 */
+  --color-primary-base: #818cf8;
+  --brand-primary: #818cf8;
+  --accent: #818cf8;
+  --bg-muted: #1c1c24;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
 
   /* Status / Chips / Prioridades */
   --chip-success-bg: #153422;

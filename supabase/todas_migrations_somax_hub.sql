@@ -4218,3 +4218,513 @@ $$;
 revoke all on function public.get_task_lineage(uuid) from public;
 grant execute on function public.get_task_lineage(uuid) to authenticated;
 
+
+
+-- ==============================================================================
+-- MIGRATION: 202611190002_team_chat_management_and_mentions.sql
+-- ==============================================================================
+-- Migration: 202611190002_team_chat_management_and_mentions.sql
+-- Objetivo:
+-- 1. Canais: colunas description, archived_at, is_restricted.
+-- 2. Proteção estrutural do canal "Geral" (não pode ser renomeado, arquivado nem excluído).
+-- 3. Políticas de RLS de canais: criar/editar por gestor/admin, excluir apenas por admin.
+-- 4. Tabela de auditoria para exclusão definitiva de canais (channel_deletion_audit).
+-- 5. Mensagens: colunas edited_at, deleted_at, mentions e mentions_all.
+-- 6. Trigger de integridade de mensagens: validação/sanitização de menções, LGPD no soft-delete, imutabilidade de campos protegidos.
+-- 7. Políticas de RLS para atualização e moderação de mensagens (messages_update).
+-- 8. RPC canônica unread_channel_metrics com contagem de não lidas e menções diretas não lidas (@n).
+
+-- 1. Adicionar colunas na tabela public.channels
+alter table public.channels
+  add column if not exists description text check (description is null or length(description) <= 500),
+  add column if not exists archived_at timestamptz default null,
+  add column if not exists is_restricted boolean not null default false;
+
+-- 2. Trigger para proteger o canal "Geral" contra alteração de nome, arquivamento ou exclusão
+create or replace function public.guard_channel_geral()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'UPDATE' then
+    if lower(old.name) = 'geral' and lower(new.name) <> 'geral' then
+      raise exception 'O canal Geral é protegido e não pode ser renomeado.';
+    end if;
+    if lower(old.name) = 'geral' and new.archived_at is not null then
+      raise exception 'O canal Geral é protegido e não pode ser arquivado.';
+    end if;
+  elsif tg_op = 'DELETE' then
+    if lower(old.name) = 'geral' then
+      raise exception 'O canal Geral é protegido e não pode ser excluído.';
+    end if;
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+drop trigger if exists trg_guard_channel_geral on public.channels;
+create trigger trg_guard_channel_geral
+  before update or delete on public.channels
+  for each row execute function public.guard_channel_geral();
+
+-- 3. Tabela de auditoria para exclusão de canais
+create table if not exists public.channel_deletion_audit (
+  id uuid primary key default gen_random_uuid(),
+  channel_id uuid not null,
+  channel_name text not null,
+  team_id uuid not null,
+  team_name text not null,
+  deleted_by uuid not null references public.profiles(id),
+  deleted_by_name text not null,
+  messages_count integer not null default 0,
+  attachments_count integer not null default 0,
+  deleted_at timestamptz not null default now()
+);
+
+alter table public.channel_deletion_audit enable row level security;
+
+drop policy if exists audit_admin_read on public.channel_deletion_audit;
+create policy audit_admin_read on public.channel_deletion_audit
+  for select to authenticated
+  using (public.is_admin(auth.uid()));
+
+-- 4. Atualizar políticas RLS em public.channels
+drop policy if exists channels_insert on public.channels;
+create policy channels_insert on public.channels for insert to authenticated
+  with check (
+    (public.is_team_manager(team_id, auth.uid()) or public.is_admin(auth.uid()))
+    and created_by = auth.uid()
+    and lower(name) <> 'geral'
+  );
+
+drop policy if exists channels_update on public.channels;
+create policy channels_update on public.channels for update to authenticated
+  using (
+    public.is_team_manager(team_id, auth.uid()) or public.is_admin(auth.uid())
+  )
+  with check (
+    public.is_team_manager(team_id, auth.uid()) or public.is_admin(auth.uid())
+  );
+
+drop policy if exists channels_delete on public.channels;
+create policy channels_delete on public.channels for delete to authenticated
+  using (
+    public.is_admin(auth.uid()) and lower(name) <> 'geral'
+  );
+
+-- 5. Adicionar colunas de ciclo de vida e marcações na tabela public.messages
+alter table public.messages
+  add column if not exists edited_at timestamptz default null,
+  add column if not exists deleted_at timestamptz default null,
+  add column if not exists mentions uuid[] not null default '{}',
+  add column if not exists mentions_all boolean not null default false;
+
+-- 6. Trigger para integridade, ciclo de vida e sanitização de menções em public.messages
+create or replace function public.guard_message_lifecycle()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  v_team_id uuid;
+  v_caller uuid := auth.uid();
+  v_is_mgr boolean := false;
+  v_is_adm boolean := false;
+  v_sanitized_mentions uuid[] := '{}';
+  v_mid uuid;
+begin
+  -- Identificar a equipe do canal
+  select c.team_id into v_team_id
+    from public.channels c
+   where c.id = coalesce(new.channel_id, old.channel_id);
+
+  if v_team_id is null then
+    raise exception 'Canal associado inexistente.';
+  end if;
+
+  if tg_op = 'INSERT' then
+    -- Sanitizar lista de menções para incluir unicamente membros ativos da equipe
+    if new.mentions is not null and array_length(new.mentions, 1) > 0 then
+      foreach v_mid in array new.mentions loop
+        if exists (
+          select 1 from public.team_members tm
+           where tm.team_id = v_team_id
+             and tm.user_id = v_mid
+             and tm.active = true
+        ) then
+          if not (v_mid = any(v_sanitized_mentions)) then
+            v_sanitized_mentions := array_append(v_sanitized_mentions, v_mid);
+          end if;
+        end if;
+      end loop;
+    end if;
+    new.mentions := v_sanitized_mentions;
+    return new;
+
+  elsif tg_op = 'UPDATE' then
+    -- Imutabilidade estrita dos campos estruturais
+    new.author_id   := old.author_id;
+    new.channel_id  := old.channel_id;
+    new.created_at  := old.created_at;
+    new.reply_to_id := old.reply_to_id;
+    new.task_id     := old.task_id;
+
+    v_is_adm := public.is_admin(v_caller);
+    v_is_mgr := public.is_team_manager(v_team_id, v_caller);
+
+    -- CASO 1: Exclusão lógica (Soft Delete / Moderação)
+    if new.deleted_at is not null and old.deleted_at is null then
+      if v_caller <> old.author_id and not v_is_mgr and not v_is_adm then
+        raise exception 'Permissão negada para remover esta mensagem.';
+      end if;
+      -- LGPD: apagar conteúdo e marcações permanentemente
+      new.body := '';
+      new.mentions := '{}';
+      new.mentions_all := false;
+      new.edited_at := null;
+      return new;
+    end if;
+
+    -- CASO 2: Tentativa de editar mensagem previamente removida
+    if old.deleted_at is not null then
+      raise exception 'Mensagens removidas não podem ser editadas.';
+    end if;
+
+    -- CASO 3: Edição de conteúdo da mensagem
+    if v_caller <> old.author_id then
+      raise exception 'Apenas o autor pode editar o texto da mensagem.';
+    end if;
+
+    -- Verificar se o canal está arquivado
+    if exists (select 1 from public.channels c where c.id = old.channel_id and c.archived_at is not null) then
+      raise exception 'Não é permitido editar mensagens em canais arquivados.';
+    end if;
+
+    -- Recalcular e sanitizar novas menções
+    if new.mentions is not null and array_length(new.mentions, 1) > 0 then
+      foreach v_mid in array new.mentions loop
+        if exists (
+          select 1 from public.team_members tm
+           where tm.team_id = v_team_id
+             and tm.user_id = v_mid
+             and tm.active = true
+        ) then
+          if not (v_mid = any(v_sanitized_mentions)) then
+            v_sanitized_mentions := array_append(v_sanitized_mentions, v_mid);
+          end if;
+        end if;
+      end loop;
+    end if;
+    new.mentions := v_sanitized_mentions;
+    new.edited_at := now();
+
+    return new;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_guard_message_lifecycle on public.messages;
+create trigger trg_guard_message_lifecycle
+  before insert or update on public.messages
+  for each row execute function public.guard_message_lifecycle();
+
+-- 7. Políticas de RLS para atualização de mensagens (messages_update)
+drop policy if exists messages_update on public.messages;
+create policy messages_update on public.messages for update to authenticated
+  using (
+    public.can_access_channel(channel_id, auth.uid())
+    and (
+      author_id = auth.uid()
+      or public.is_admin(auth.uid())
+      or exists (
+        select 1 from public.channels c
+         where c.id = messages.channel_id
+           and public.is_team_manager(c.team_id, auth.uid())
+      )
+    )
+  )
+  with check (
+    public.can_access_channel(channel_id, auth.uid())
+  );
+
+-- 8. RPC canônica unread_channel_metrics (com unread_count e mention_count @n)
+create or replace function public.unread_channel_metrics()
+returns table(
+  channel_id uuid,
+  unread_count bigint,
+  mention_count bigint
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select c.id as channel_id,
+         count(m.id)::bigint as unread_count,
+         count(m.id) filter (
+           where m.author_id <> auth.uid()
+             and (auth.uid() = any(m.mentions) or m.mentions_all is true)
+         )::bigint as mention_count
+  from public.channels c
+  left join public.message_reads r
+    on r.channel_id = c.id and r.user_id = auth.uid()
+  left join public.messages m
+    on m.channel_id = c.id
+   and m.author_id <> auth.uid()
+   and m.deleted_at is null
+   and (r.last_read_at is null or m.created_at > r.last_read_at)
+  group by c.id;
+$$;
+
+revoke all on function public.unread_channel_metrics() from public;
+grant execute on function public.unread_channel_metrics() to authenticated;
+
+-- Atualizar unread_message_counts para ignorar mensagens com deleted_at is not null
+create or replace function public.unread_message_counts()
+returns table(channel_id uuid, unread_count bigint)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select c.id,
+         count(m.id)::bigint
+  from public.channels c
+  left join public.message_reads r
+    on r.channel_id = c.id and r.user_id = auth.uid()
+  left join public.messages m
+    on m.channel_id = c.id
+   and m.author_id <> auth.uid()
+   and m.deleted_at is null
+   and (r.last_read_at is null or m.created_at > r.last_read_at)
+  group by c.id;
+$$;
+
+revoke all on function public.unread_message_counts() from public;
+grant execute on function public.unread_message_counts() to authenticated;
+
+
+-- ==============================================================================
+-- Migration: 202611200001_delete_user_and_team_rpcs.sql
+-- Demanda: Exclusão Segura de Usuários e Equipes com Integridade Referencial
+-- ==============================================================================
+
+-- 1. RPC para exclusão segura de equipe
+create or replace function public.delete_team(p_team_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_task_count integer;
+  v_team_name text;
+begin
+  -- Valida autorização: apenas administradores ativos ou service_role
+  if auth.role() <> 'service_role' and not public.is_admin(auth.uid()) then
+    raise exception 'Sem permissão. Apenas administradores podem excluir equipes.';
+  end if;
+
+  select name into v_team_name from public.teams where id = p_team_id;
+  if v_team_name is null then
+    raise exception 'Equipe não encontrada.';
+  end if;
+
+  -- 1.1 Bloqueio de integridade: equipes com tarefas vinculadas não podem ser apagadas diretamente
+  select count(*) into v_task_count from public.tasks where team_id = p_team_id;
+  if v_task_count > 0 then
+    raise exception 'Não é possível excluir a equipe "%" pois existem % tarefa(s) vinculada(s) a ela. Reatribua as tarefas antes de excluir.', v_team_name, v_task_count;
+  end if;
+
+  -- 1.2 Desvincula links de autocadastro da equipe
+  update public.client_registration_links set team_id = null where team_id = p_team_id;
+
+  -- 1.3 Remove canais da equipe
+  delete from public.channels where team_id = p_team_id;
+
+  -- 1.4 Remove quadros customizados da equipe
+  delete from public.boards where team_id = p_team_id and type = 'custom';
+
+  -- 1.5 Remove associações de membros
+  delete from public.team_members where team_id = p_team_id;
+
+  -- 1.6 Remove a equipe
+  delete from public.teams where id = p_team_id;
+
+  return jsonb_build_object('success', true, 'team_id', p_team_id);
+end $$;
+
+grant execute on function public.delete_team(uuid) to authenticated, service_role;
+
+
+-- 2. RPC para exclusão segura de usuário (gerenciamento atômico)
+create or replace function public.delete_managed_user(p_user_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_is_master boolean;
+  v_caller_role public.user_role;
+  v_target_role public.user_role;
+  v_has_tasks boolean;
+  v_has_messages boolean;
+begin
+  -- Valida autorização
+  if auth.role() <> 'service_role' and not public.is_admin(auth.uid()) then
+    raise exception 'Sem permissão. Apenas administradores podem excluir usuários.';
+  end if;
+
+  -- Impede auto-exclusão
+  if auth.uid() = p_user_id then
+    raise exception 'Você não pode excluir seu próprio usuário logado.';
+  end if;
+
+  select is_master, role into v_is_master, v_target_role from public.profiles where id = p_user_id;
+  if v_is_master then
+    raise exception 'Não é permitido excluir o administrador master da organização.';
+  end if;
+
+  -- Se o alvo for administrador, somente o master ou service_role pode excluir
+  if v_target_role = 'administrador' and auth.role() <> 'service_role' then
+    if not public.is_master_admin(auth.uid()) then
+      raise exception 'Apenas o Administrador Master pode excluir outro administrador.';
+    end if;
+  end if;
+
+  -- 2.1 Remove vínculos com equipes e status de leitura
+  delete from public.team_members where user_id = p_user_id;
+  delete from public.message_reads where user_id = p_user_id;
+
+  -- 2.2 Desvincula tarefas em que o usuário seja o responsável
+  update public.tasks set assignee_id = null where assignee_id = p_user_id;
+
+  -- 2.3 Tenta exclusão física ou fallback para desativação com anonimização
+  begin
+    delete from public.profiles where id = p_user_id;
+    return jsonb_build_object('success', true, 'mode', 'hard_delete');
+  exception when foreign_key_violation then
+    -- Se houver FKs obrigatórias em histórico (ex: created_by de tarefas antigas, mensagens arquivadas)
+    update public.profiles
+    set active = false,
+        full_name = full_name || ' (Excluído)',
+        email = null,
+        whatsapp = null
+    where id = p_user_id;
+    return jsonb_build_object('success', true, 'mode', 'soft_delete_anonymized');
+  end;
+end $$;
+
+grant execute on function public.delete_managed_user(uuid) to authenticated, service_role;
+
+
+-- ==============================================================================
+-- Migration: 202611200002_delete_channel_atomic_rpc.sql
+-- Demanda: RPC Atômica para Exclusão Definitiva de Canais do Chat
+-- ==============================================================================
+
+create or replace function public.delete_channel_atomic(
+  p_channel_id uuid,
+  p_confirmation_name text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_caller uuid := auth.uid();
+  v_caller_profile record;
+  v_channel record;
+  v_msg_count integer := 0;
+  v_att_count integer := 0;
+  v_team_name text := 'Equipe';
+begin
+  -- 1. Validar autenticação
+  if v_caller is null and auth.role() <> 'service_role' then
+    raise exception 'Não autenticado.';
+  end if;
+
+  -- 2. Validar que o chamador é administrador ativo
+  if auth.role() <> 'service_role' then
+    select id, full_name, role, active into v_caller_profile
+      from public.profiles
+     where id = v_caller;
+
+    if v_caller_profile.id is null or not coalesce(v_caller_profile.active, false) then
+      raise exception 'Acesso negado: perfil inativo ou inexistente.';
+    end if;
+
+    if v_caller_profile.role <> 'administrador' and not public.is_admin(v_caller) then
+      raise exception 'Apenas administradores podem excluir canais definitivamente.';
+    end if;
+  end if;
+
+  -- 3. Buscar canal e equipe
+  select c.id, c.name, c.team_id, t.name as team_name
+    into v_channel
+    from public.channels c
+    left join public.teams t on t.id = c.team_id
+   where c.id = p_channel_id;
+
+  if v_channel.id is null then
+    raise exception 'Canal não encontrado.';
+  end if;
+
+  -- 4. Validar proteção do canal "Geral"
+  if lower(trim(v_channel.name)) = 'geral' then
+    raise exception 'O canal Geral é protegido e não pode ser excluído.';
+  end if;
+
+  -- 5. Validar nome de confirmação
+  if lower(trim(v_channel.name)) <> lower(trim(coalesce(p_confirmation_name, ''))) then
+    raise exception 'O nome de confirmação digitado não confere com o nome do canal.';
+  end if;
+
+  if v_channel.team_name is not null then
+    v_team_name := v_channel.team_name;
+  end if;
+
+  -- 6. Contabilizar mensagens e anexos para auditoria
+  select count(*) into v_msg_count
+    from public.messages
+   where channel_id = p_channel_id;
+
+  select count(*) into v_att_count
+    from public.attachments a
+    join public.messages m on m.id = a.message_id
+   where m.channel_id = p_channel_id;
+
+  -- 7. Registrar auditoria se a tabela existir
+  begin
+    insert into public.channel_deletion_audit (
+      channel_id,
+      channel_name,
+      team_id,
+      team_name,
+      deleted_by,
+      deleted_by_name,
+      messages_count,
+      attachments_count,
+      deleted_at
+    ) values (
+      v_channel.id,
+      v_channel.name,
+      v_channel.team_id,
+      v_team_name,
+      coalesce(v_caller, '00000000-0000-0000-0000-000000000000'::uuid),
+      coalesce(v_caller_profile.full_name, 'Administrador'),
+      v_msg_count,
+      v_att_count,
+      now()
+    );
+  exception when others then
+    -- Não aborta a exclusão caso a tabela de auditoria não esteja pronta
+    null;
+  end;
+
+  -- 8. Excluir o canal (cascateia para messages, attachments, message_reads)
+  delete from public.channels
+   where id = p_channel_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'channel_id', p_channel_id,
+    'channel_name', v_channel.name,
+    'messages_purged', v_msg_count,
+    'attachments_purged', v_att_count
+  );
+end;
+$$;
+
+grant execute on function public.delete_channel_atomic(uuid, text) to authenticated, service_role;

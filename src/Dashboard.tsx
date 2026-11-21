@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import type { Profile, Stage, Task, Team } from './lib'
 import { completed, dateBR, taskBuckets } from './lib'
+import { getStagesForBoard } from './general-views'
 import type { DashboardFilter, Data, Page } from './App'
 import './dashboard.css'
 
@@ -113,10 +114,7 @@ export default function Dashboard({
 
   // Tarefas filtradas pelo escopo de quadro selecionado
   const scopedTasks = useMemo(() => {
-    if (boardScope === 'all') return data.tasks
-    if (boardScope === 'board-geral') {
-      return data.tasks.filter(t => !t.board_id || t.board_id === 'board-geral')
-    }
+    if (boardScope === 'all' || boardScope === 'board-geral') return data.tasks
     return data.tasks.filter(t => t.board_id === boardScope)
   }, [data.tasks, boardScope])
 
@@ -244,16 +242,17 @@ export default function Dashboard({
 
   // Etapas exibidas no Panorama do Fluxo conforme o escopo
   const flowStages = useMemo(() => {
-    if (boardScope === 'all' || boardScope === 'board-geral') {
-      return data.stages
+    const selectedBoard = data.boards.find(b => b.id === boardScope)
+    if (selectedBoard && boardScope !== 'all') {
+      const stagesForBoard = getStagesForBoard(selectedBoard, data.stages, data.boardStages)
+      return stagesForBoard
         .filter(s => !s.is_final && activeTasks.some(t => t.stage_id === s.id))
         .slice(0, 6)
     }
-    return data.boardStages
-      .filter(s => s.board_id === boardScope && !s.is_final && activeTasks.some(t => t.stage_id === s.id))
-      .sort((a, b) => a.position - b.position)
+    return data.stages
+      .filter(s => !s.is_final && activeTasks.some(t => t.stage_id === s.id))
       .slice(0, 6)
-  }, [boardScope, data.stages, data.boardStages, activeTasks])
+  }, [boardScope, data.boards, data.stages, data.boardStages, activeTasks])
 
   return (
     <>
@@ -320,7 +319,7 @@ export default function Dashboard({
             <option value="all">Todos os meus quadros (Consolidado)</option>
             <option value="board-geral">Quadro Geral (Canônico)</option>
             {data.boards
-              .filter(b => b.id !== 'board-geral')
+              .filter(b => b.id !== 'board-geral' && b.type !== 'general' && b.type !== 'sector_view' && (b as { is_active?: boolean }).is_active !== false)
               .map(b => (
                 <option key={b.id} value={b.id}>
                   {b.name} ({b.methodology === 'scrum' ? 'Scrum' : 'Kanban'})

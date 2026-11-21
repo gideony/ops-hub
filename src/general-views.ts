@@ -12,6 +12,134 @@ export interface BoardMetricsSummary {
   total: number
 }
 
+export interface BoardColorToken {
+  key: string
+  dot: string
+  light: {
+    bg: string
+    text: string
+    border: string
+  }
+  dark: {
+    bg: string
+    text: string
+    border: string
+  }
+}
+
+/**
+ * Paleta estável de 10 cores semânticas para identificação visual de quadros.
+ * Cada item possui par de tokens (fundo claro + texto escuro no tema claro; fundo escuro + texto claro no escuro)
+ * com taxa de contraste WCAG 2.1 comprovadamente superior ao mínimo AA de 4.5:1.
+ */
+export const BOARD_COLOR_PALETTE: BoardColorToken[] = [
+  {
+    key: 'blue',
+    dot: '#2563eb', // Comercial
+    light: { bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' },
+    dark: { bg: '#172554', text: '#bfdbfe', border: '#1d4ed8' },
+  },
+  {
+    key: 'purple',
+    dot: '#7c3aed', // Implantação
+    light: { bg: '#f5f3ff', text: '#581c87', border: '#ddd6fe' },
+    dark: { bg: '#2e1065', text: '#e9d5ff', border: '#7c3aed' },
+  },
+  {
+    key: 'teal',
+    dot: '#0d9488', // Suporte N1
+    light: { bg: '#f0fdfa', text: '#115e59', border: '#99f6e4' },
+    dark: { bg: '#134e4a', text: '#ccfbf1', border: '#0d9488' },
+  },
+  {
+    key: 'amber',
+    dot: '#d97706', // Backlog
+    light: { bg: '#fffbeb', text: '#78350f', border: '#fde68a' },
+    dark: { bg: '#451a03', text: '#fef3c7', border: '#b45309' },
+  },
+  {
+    key: 'pink',
+    dot: '#db2777', // Atualização sistema
+    light: { bg: '#fdf2f8', text: '#831843', border: '#fbcfe8' },
+    dark: { bg: '#500724', text: '#fce7f3', border: '#be185d' },
+  },
+  {
+    key: 'emerald',
+    dot: '#059669', // Financeiro
+    light: { bg: '#ecfdf5', text: '#064e3b', border: '#a7f3d0' },
+    dark: { bg: '#064e3b', text: '#d1fae5', border: '#059669' },
+  },
+  {
+    key: 'orange',
+    dot: '#ea580c', // Operações
+    light: { bg: '#fff7ed', text: '#7c2d12', border: '#fed7aa' },
+    dark: { bg: '#431407', text: '#ffedd5', border: '#c2410c' },
+  },
+  {
+    key: 'indigo',
+    dot: '#4f46e5', // Qualidade / QA
+    light: { bg: '#eef2ff', text: '#312e81', border: '#c7d2fe' },
+    dark: { bg: '#1e1b4b', text: '#e0e7ff', border: '#4f46e5' },
+  },
+  {
+    key: 'sky',
+    dot: '#0284c7', // Atendimento
+    light: { bg: '#f0f9ff', text: '#075985', border: '#bae6fd' },
+    dark: { bg: '#082f49', text: '#e0f2fe', border: '#0284c7' },
+  },
+  {
+    key: 'slate',
+    dot: '#475569', // Geral / Neutro
+    light: { bg: '#f8fafc', text: '#0f172a', border: '#cbd5e1' },
+    dark: { bg: '#0f172a', text: '#f1f5f9', border: '#334155' },
+  },
+]
+
+/**
+ * Retorna os tokens visuais completos de um quadro (cor da bolinha, fundos e textos para ambos os temas).
+ * Se o quadro tiver `board.color`, tenta casar com a paleta ou monta os tokens a partir da cor hex.
+ * Caso contrário, atribui estavelmente a cor pela semântica do nome ou pelo índice/hash do ID.
+ */
+export function getBoardVisual(
+  board?: { id?: string; name?: string; color?: string | null; type?: string } | null,
+  fallbackIndex?: number
+): BoardColorToken {
+  if (!board) return BOARD_COLOR_PALETTE[9] // Slate
+
+  // Casos canônicos por nome
+  const nameLower = (board.name || '').toLowerCase()
+  if (nameLower.includes('comercial')) return BOARD_COLOR_PALETTE[0]
+  if (nameLower.includes('implanta')) return BOARD_COLOR_PALETTE[1]
+  if (nameLower.includes('suporte')) return BOARD_COLOR_PALETTE[2]
+  if (nameLower.includes('backlog')) return BOARD_COLOR_PALETTE[3]
+  if (nameLower.includes('atualiza') || nameLower.includes('sistema')) return BOARD_COLOR_PALETTE[4]
+  if (nameLower.includes('financ')) return BOARD_COLOR_PALETTE[5]
+  if (nameLower.includes('opera')) return BOARD_COLOR_PALETTE[6]
+  if (nameLower.includes('qa') || nameLower.includes('qualidade')) return BOARD_COLOR_PALETTE[7]
+  if (nameLower.includes('atend')) return BOARD_COLOR_PALETTE[8]
+  if (board.id === 'board-geral' || board.type === 'general') return BOARD_COLOR_PALETTE[0] // Azul Somax
+
+  // Se já possui cor explícita
+  if (board.color) {
+    const match = BOARD_COLOR_PALETTE.find(
+      p => p.dot.toLowerCase() === board.color?.toLowerCase()
+    )
+    if (match) return match
+  }
+
+  // Atribuição estável por índice ou hash do ID
+  if (typeof fallbackIndex === 'number' && fallbackIndex >= 0) {
+    return BOARD_COLOR_PALETTE[fallbackIndex % BOARD_COLOR_PALETTE.length]
+  }
+
+  const idStr = board.id || board.name || 'board'
+  let hash = 0
+  for (let i = 0; i < idStr.length; i++) {
+    hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0
+  }
+  return BOARD_COLOR_PALETTE[hash % BOARD_COLOR_PALETTE.length]
+}
+
 export const canonicalStageVisuals: Record<string, { bg: string; dot: string }> = {
   'Negociações': { bg: '#e5e7eb', dot: '#6b7280' },
   'Negociação': { bg: '#e5e7eb', dot: '#6b7280' },
@@ -259,3 +387,62 @@ export function setUserBoardTabsOrder(userId: string | undefined, order: string[
     localStorage.setItem(`${TABS_ORDER_PREFIX}${userId}`, JSON.stringify(order))
   } catch {}
 }
+
+// ==========================================
+// PREFERÊNCIA: OCULTAR COLUNAS VAZIAS
+// ==========================================
+
+const HIDE_EMPTY_COLS_PREFIX = 'somax_user_hide_empty_cols_'
+
+export function getUserHideEmptyColumns(
+  userId: string | undefined,
+  mode: GeneralViewMode = 'lateral'
+): boolean {
+  // Lateral: padrão true (colunas com 0 tarefas recolhidas em tiras de 46px)
+  // Consolidado: padrão false (colunas abertas por padrão)
+  const defaultVal = mode === 'lateral'
+  if (!userId) return defaultVal
+  try {
+    const raw = localStorage.getItem(`${HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`)
+    if (raw !== null) {
+      return raw === 'true'
+    }
+  } catch {}
+  return defaultVal
+}
+
+export function setUserHideEmptyColumns(
+  userId: string | undefined,
+  mode: GeneralViewMode,
+  hide: boolean
+): void {
+  if (!userId) return
+  try {
+    localStorage.setItem(`${HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`, String(hide))
+  } catch {}
+}
+
+/**
+ * Resumo de etapas com tarefas para o cabeçalho das faixas recolhidas do modo Consolidado.
+ * Retorna as etapas que contêm tarefas, ordenadas pelas mais povoadas primeiro.
+ */
+export function getBoardStageSummary(
+  stages: Stage[],
+  tasks: Task[]
+): { stageId: string; stageName: string; count: number; color?: string }[] {
+  const counts: Record<string, number> = {}
+  for (const t of tasks) {
+    counts[t.stage_id] = (counts[t.stage_id] || 0) + 1
+  }
+
+  return stages
+    .map(s => ({
+      stageId: s.id,
+      stageName: s.name,
+      count: counts[s.id] || 0,
+      color: s.color,
+    }))
+    .filter(item => item.count > 0)
+    .sort((a, b) => b.count - a.count)
+}
+

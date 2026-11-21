@@ -58,12 +58,12 @@ describe('Ramificação de Tarefas e Linha do Tempo (ADR-014)', () => {
     expect(branchTask.origin_task_id).toBe(originalTask.id)
 
     // 2. A ramificação tem a marca com o nome do quadro de origem e referência à original
-    const originBoard = demoData.boards.find(b => b.id === (originalTask.board_id || 'board-geral'))
+    const originBoard = demoData.boards.find(b => b.id === (originalTask.board_id || 'board-geral-legado'))
     expect(originBoard).toBeDefined()
-    expect(originBoard?.name).toBe('Geral')
+    expect(originBoard?.name).toBe('Geral (legado)')
 
     const branchTagText = `Veio de: ${originBoard?.name}`
-    expect(branchTagText).toBe('Veio de: Geral')
+    expect(branchTagText).toBe('Veio de: Geral (legado)')
     expect(originalTask.id).toBe(branchTask.origin_task_id)
 
     // 3. Validação do clique: cada marca abre instantaneamente a outra tarefa correspondente

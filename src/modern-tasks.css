@@ -754,6 +754,12 @@
   border: 1px solid var(--border-subtle, #e2e8f0);
   border-radius: 6px;
   padding: 6px 8px;
+  transition: all 0.15s ease;
+}
+
+.template-checkbox-item-v2.is-checked {
+  background: var(--primary-subtle, #eff6ff);
+  border-color: var(--primary-main, #bfdbfe);
 }
 
 .template-checkbox-item-v2 input {
@@ -836,3 +842,186 @@
   justify-content: center;
   margin-left: auto;
 }
+
+/* ==============================================================================
+   TAREFAS MODERNAS E MODAIS — TEMA ESCURO (:root[data-theme='dark'])
+   ============================================================================== */
+:root[data-theme='dark'] .task-card-v2 {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme='dark'] .task-card-v2:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: var(--border-strong);
+}
+
+:root[data-theme='dark'] .task-card-v2-forward-stripe {
+  background: var(--chip-info-bg);
+  color: var(--chip-info-text);
+  border-top-color: var(--chip-info-border);
+}
+
+:root[data-theme='dark'] .task-card-v2-origin-stripe {
+  background: var(--chip-success-bg);
+  color: var(--chip-success-text);
+  border-top-color: var(--chip-success-border);
+}
+
+:root[data-theme='dark'] .task-card-v2-avatar {
+  background: #28244a;
+  color: #c7d2fe;
+}
+
+:root[data-theme='dark'] .task-card-v2-menu-popup {
+  background: var(--modal-bg);
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='dark'] .task-card-v2-menu-item {
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .task-card-v2-menu-item:hover {
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .task-card-v2-menu-item.danger {
+  color: var(--chip-danger-text);
+}
+
+:root[data-theme='dark'] .task-card-v2-menu-item.danger:hover {
+  background: var(--chip-danger-bg);
+}
+
+:root[data-theme='dark'] .task-detail-modal-v2,
+:root[data-theme='dark'] .new-task-modal-v2 {
+  background: var(--modal-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--modal-border);
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='dark'] .task-detail-v2-right,
+:root[data-theme='dark'] .templates-applied-card,
+:root[data-theme='dark'] .template-selection-box-v2 {
+  background: var(--modal-card-bg);
+  border-color: var(--modal-card-border);
+}
+
+:root[data-theme='dark'] .template-checkbox-item-v2 {
+  background: var(--bg-field);
+  border-color: var(--border-main);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .template-checkbox-item-v2:hover {
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .template-checkbox-item-v2.is-checked {
+  background: var(--primary-subtle);
+  border-color: var(--primary-main);
+}
+
+:root[data-theme='dark'] .task-detail-v2-tabs-header {
+  border-bottom-color: var(--border-main);
+}
+
+:root[data-theme='dark'] .task-detail-v2-tab-btn {
+  color: var(--text-muted);
+}
+
+:root[data-theme='dark'] .task-detail-v2-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .task-detail-v2-tab-btn.active {
+  border-color: var(--primary-main);
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .modal-pill-board {
+  background: var(--chip-info-bg);
+  color: var(--chip-info-text);
+  border-color: var(--chip-info-border);
+}
+
+:root[data-theme='dark'] .modal-pill-stage {
+  background: var(--chip-neutral-bg);
+  color: var(--chip-neutral-text);
+  border-color: var(--chip-neutral-border);
+}
+
+:root[data-theme='dark'] .modal-pill-final {
+  background: var(--chip-success-bg);
+  color: var(--chip-success-text);
+}
+
+:root[data-theme='dark'] .task-detail-v2-banner {
+  background: var(--chip-info-bg);
+  border-color: var(--chip-info-border);
+  color: var(--chip-info-text);
+}
+
+:root[data-theme='dark'] .template-applied-track {
+  background: var(--border-strong);
+}
+
+:root[data-theme='dark'] .btn-see-subtasks {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .btn-see-subtasks:hover {
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .task-detail-field-v2 input,
+:root[data-theme='dark'] .task-detail-field-v2 select,
+:root[data-theme='dark'] .task-detail-field-v2 textarea {
+  background: var(--bg-field);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .task-detail-field-v2 input:focus,
+:root[data-theme='dark'] .task-detail-field-v2 select:focus,
+:root[data-theme='dark'] .task-detail-field-v2 textarea:focus {
+  border-color: var(--border-focus);
+}
+
+:root[data-theme='dark'] .task-detail-v2-footer {
+  border-top-color: var(--border-main);
+  background: var(--modal-bg);
+}
+
+:root[data-theme='dark'] .btn-cancel-task {
+  background: var(--bg-field);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .btn-cancel-task:hover {
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .task-detail-delete-btn {
+  background: var(--chip-danger-bg);
+  border-color: var(--chip-danger-border);
+  color: var(--chip-danger-text);
+}
+
+:root[data-theme='dark'] .task-detail-delete-btn:hover {
+  background: #501620;
+}
+
+:root[data-theme='dark'] .kanban-counter-badge-dark {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+

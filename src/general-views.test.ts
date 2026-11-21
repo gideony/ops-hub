@@ -505,4 +505,101 @@ describe('QA / Regras Mandatórias da Demanda: Paridade, Segurança e Interaçã
     expect(updatedValues.board_id).not.toBeNull()
     expect(updatedValues.board_id).not.toBe('board-geral')
   })
+
+  describe('Redesign Visual da Aba Geral — Cores por Quadro e Preferências (Passos 2 a 6)', () => {
+    it('getBoardVisual associa cores semânticas estáveis por nome do quadro', async () => {
+      const { getBoardVisual } = await import('./general-views')
+
+      const comercialVisual = getBoardVisual({ id: 'b1', name: 'Comercial' })
+      expect(comercialVisual.key).toBe('blue')
+      expect(comercialVisual.dot).toBe('#2563eb')
+
+      const implantacaoVisual = getBoardVisual({ id: 'b2', name: 'Implantação Provedor' })
+      expect(implantacaoVisual.key).toBe('purple')
+      expect(implantacaoVisual.dot).toBe('#7c3aed')
+
+      const suporteVisual = getBoardVisual({ id: 'b3', name: 'Suporte N1' })
+      expect(suporteVisual.key).toBe('teal')
+      expect(suporteVisual.dot).toBe('#0d9488')
+
+      const backlogVisual = getBoardVisual({ id: 'b4', name: 'Backlog Geral' })
+      expect(backlogVisual.key).toBe('amber')
+      expect(backlogVisual.dot).toBe('#d97706')
+
+      const atualizacaoVisual = getBoardVisual({ id: 'b5', name: 'Atualização Sistema' })
+      expect(atualizacaoVisual.key).toBe('pink')
+      expect(atualizacaoVisual.dot).toBe('#db2777')
+    })
+
+    it('getBoardVisual respeita cor existente no campo color do quadro', async () => {
+      const { getBoardVisual } = await import('./general-views')
+
+      const customWithColor = getBoardVisual({
+        id: 'b-custom',
+        name: 'Financeiro Especial',
+        color: '#059669',
+      })
+      expect(customWithColor.key).toBe('emerald')
+      expect(customWithColor.dot).toBe('#059669')
+    })
+
+    it('getBoardVisual gera retorno visual consistente mesmo para quadros sem nome ou nulos', async () => {
+      const { getBoardVisual } = await import('./general-views')
+
+      const fallback = getBoardVisual(null)
+      expect(fallback).toBeDefined()
+      expect(fallback.dot).toBeDefined()
+      expect(fallback.light).toBeDefined()
+      expect(fallback.dark).toBeDefined()
+    })
+
+    it('getUserHideEmptyColumns retorna padrões corretos por modo e persiste separadamente', async () => {
+      const { getUserHideEmptyColumns, setUserHideEmptyColumns } = await import('./general-views')
+      const testUserId = 'test-user-empty-cols-123'
+
+      // Padrão: Lateral = true (colunas 0 tarefas recolhidas como tiras de 46px)
+      expect(getUserHideEmptyColumns(testUserId, 'lateral')).toBe(true)
+
+      // Padrão: Consolidado = false (colunas abertas por padrão com altura compacta)
+      expect(getUserHideEmptyColumns(testUserId, 'consolidado')).toBe(false)
+
+      // Salva alteração para o lateral
+      setUserHideEmptyColumns(testUserId, 'lateral', false)
+      expect(getUserHideEmptyColumns(testUserId, 'lateral')).toBe(false)
+      // Consolidado não deve ser afetado
+      expect(getUserHideEmptyColumns(testUserId, 'consolidado')).toBe(false)
+
+      // Salva alteração para o consolidado
+      setUserHideEmptyColumns(testUserId, 'consolidado', true)
+      expect(getUserHideEmptyColumns(testUserId, 'consolidado')).toBe(true)
+      expect(getUserHideEmptyColumns(testUserId, 'lateral')).toBe(false)
+    })
+
+    it('getBoardStageSummary resume etapas com tarefas ordenadas pelas mais povoadas', async () => {
+      const { getBoardStageSummary } = await import('./general-views')
+
+      const testStages: Stage[] = [
+        { id: 's1', name: 'Lead', position: 1, is_final: false, is_pause: false, color: '#3b82f6' },
+        { id: 's2', name: 'Negociação', position: 2, is_final: false, is_pause: false, color: '#f59e0b' },
+        { id: 's3', name: 'Pausa', position: 3, is_final: false, is_pause: true, color: '#ef4444' },
+        { id: 's4', name: 'Concluído', position: 4, is_final: true, is_pause: false, color: '#22c55e' },
+      ]
+
+      const testTasks: Task[] = [
+        createTestTask({ id: 't1', stage_id: 's2' }),
+        createTestTask({ id: 't2', stage_id: 's2' }),
+        createTestTask({ id: 't3', stage_id: 's2' }),
+        createTestTask({ id: 't4', stage_id: 's4' }),
+      ]
+
+      const summary = getBoardStageSummary(testStages, testTasks)
+
+      // Apenas s2 (3 tarefas) e s4 (1 tarefa) devem aparecer; s1 e s3 (0 tarefas) devem ser filtradas
+      expect(summary).toHaveLength(2)
+      expect(summary[0].stageName).toBe('Negociação')
+      expect(summary[0].count).toBe(3)
+      expect(summary[1].stageName).toBe('Concluído')
+      expect(summary[1].count).toBe(1)
+    })
+  })
 })

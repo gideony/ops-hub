@@ -50,16 +50,12 @@ describe('QA: Estrutura e Acessibilidade da Tabela de Resumo por Quadro em Relat
     expect(html).toContain('Exportar resumo (CSV)')
   })
 
-  it('renderiza linha de Total Consolidado e linhas de visão por setor', () => {
+  it('renderiza linha de Total Consolidado dos quadros reais', () => {
     const html = renderToStaticMarkup(<ReportsPage data={demoData as unknown as Data} onTask={dummyOnTask} />)
 
     expect(html).toContain('summary-row-total')
     expect(html).toContain('TOTAL CONSOLIDADO')
     expect(html).toContain('Soma líquida dos quadros')
-
-    // Visões de setor
-    expect(html).toContain('summary-row-mirror')
-    expect(html).toContain('Lente do Quadro Geral')
   })
 
   it('formata colunas numéricas com classe tabular e distingue zeros de valores positivos', () => {

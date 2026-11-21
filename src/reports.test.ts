@@ -147,7 +147,7 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
     expect(report.totals.journeys).toBe(32)
 
     // Verificação de linhas do resumo por quadro
-    const summaryGeral = report.boardSummaries.find(b => b.boardId === 'board-geral')
+    const summaryGeral = report.boardSummaries.find(b => b.boardId === 'board-geral-legado')
     const summarySup = report.boardSummaries.find(b => b.boardId === 'board-suporte-n1')
     const summaryApp = report.boardSummaries.find(b => b.boardId === 'board-app-mobile')
     const summaryCom = report.boardSummaries.find(b => b.boardId === 'board-comercial-funil')
@@ -197,7 +197,7 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
     expect(summaryImp?.total).toBe(3) // 3 nativas (ramificação ocultada)
   })
 
-  it('critério 2: visão por setor é filtro/espelho e não duplica tarefas no total consolidado', () => {
+  it('critério 2: relatórios consideram apenas quadros reais ativos e excluem visões de setor do resumo consolidado', () => {
     const report = buildReport(
       demoData.tasks,
       demoData.stages,
@@ -208,23 +208,14 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
       demoData.sprints,
     )
 
+    // Visão comercial (sector_view) não entra na lista de quadros reais
     const summaryComercial = report.boardSummaries.find(b => b.boardId === 'board-comercial')
-    expect(summaryComercial).toBeDefined()
-    expect(summaryComercial?.isMirrorView).toBe(true)
-    expect(summaryComercial?.type).toBe('sector_view')
+    expect(summaryComercial).toBeUndefined()
 
-    // Visão comercial tem apenas as tarefas do Geral em etapas de Negociação, Contrato e Kick-off
-    const comercialStageIds = demoData.boards.find(b => b.id === 'board-comercial')?.stage_ids || []
-    const tarefasSetorEsperadas = demoData.tasks.filter(
-      t => (!t.board_id || t.board_id === 'board-geral') && comercialStageIds.includes(t.stage_id)
-    ).length
-
-    expect(summaryComercial?.total).toBe(tarefasSetorEsperadas)
-
-    // O total consolidado (33) NÃO inclui a soma de summaryComercial, que geraria duplicação
-    const totalComDuplicacao = report.boardSummaries.reduce((acc, row) => acc + row.total, 0)
-    expect(totalComDuplicacao).toBeGreaterThan(33) // Prova que somar ingenuamente duplicaria
-    expect(report.totals.all).toBe(33) // Prova que buildReport mantém o total desduplicado
+    // O total das linhas do resumo por quadro fecha exatamente com o total consolidado (33 tarefas)
+    const totalSomaQuadros = report.boardSummaries.reduce((acc, row) => acc + row.total, 0)
+    expect(totalSomaQuadros).toBe(33)
+    expect(totalSomaQuadros).toBe(report.totals.all)
   })
 
   it('critério 3: status mutuamente exclusivos somam exatamente o total (active + done + blocked + backlog = all)', () => {
@@ -522,7 +513,7 @@ describe('Regras de Concordância e Dimensão de Quadros (Critérios de Aceite)'
     expect(csv).toContain('Quadro;Tipo;Metodologia;Visão;Total;Em andamento;Pausadas;Backlog;Concluídas;Atrasadas;Progresso (%);Story Points Concluídos;Story Points Totais')
 
     // Deve conter linhas de quadros e a linha de total
-    expect(csv).toContain('"Geral"')
+    expect(csv).toContain('"Geral (legado)"')
     expect(csv).toContain('"TOTAL CONSOLIDADO"')
     expect(csv).toContain('Scrum')
     expect(csv).toContain('Kanban')

@@ -201,4 +201,139 @@
 :root[data-theme='dark'] .reports-metric-icon.backlog{background:var(--chip-purple-bg);color:var(--chip-purple-text)}
 :root[data-theme='dark'] .reports-status.backlog{background:var(--chip-purple-bg);color:var(--chip-purple-text)}
 
+/* Abas de Quadros (Tarefas) e Navegação no Dark Mode */
+:root[data-theme='dark'] .board-tabs-bar {
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border-main);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .board-tabs-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+:root[data-theme='dark'] .board-tabs-list::-webkit-scrollbar {
+  height: 3px;
+}
+
+:root[data-theme='dark'] .board-tabs-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:root[data-theme='dark'] .board-tabs-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+:root[data-theme='dark'] .board-tab {
+  color: var(--text-secondary);
+  background: transparent;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: -1px;
+}
+
+:root[data-theme='dark'] .board-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .board-tab.active {
+  background: var(--primary-subtle) !important;
+  color: var(--primary-text) !important;
+  font-weight: 600 !important;
+  border: none !important;
+  border-bottom: 2px solid var(--primary-text) !important;
+  border-radius: 6px 6px 0 0 !important;
+}
+
+:root[data-theme='dark'] .board-tab.active .board-tab-tag {
+  background: var(--bg-surface-subtle) !important;
+  color: var(--primary-text) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+
+:root[data-theme='dark'] .board-tab-tag {
+  background: var(--bg-surface-subtle);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+:root[data-theme='dark'] .board-tab-color-dot {
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+:root[data-theme='dark'] .board-tab-create {
+  border: 1px dashed var(--border-strong) !important;
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  border-radius: 6px !important;
+  padding: 5px 11px !important;
+  margin: auto 0 auto 6px !important;
+  font-size: 12px !important;
+}
+
+:root[data-theme='dark'] .board-tab-create:hover {
+  border-color: var(--primary-text) !important;
+  border-style: solid !important;
+  background: var(--primary-subtle) !important;
+  color: var(--primary-text) !important;
+}
+
+:root[data-theme='dark'] .btn-manage-stages {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+:root[data-theme='dark'] .btn-manage-stages:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .tab-reorder-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 3px;
+}
+
+:root[data-theme='dark'] .tab-reorder-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .board-tabs-right .view-switch {
+  background: var(--bg-field);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+:root[data-theme='dark'] .board-tabs-right .view-switch button {
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+:root[data-theme='dark'] .board-tabs-right .view-switch button:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+:root[data-theme='dark'] .board-tabs-right .view-switch button.selected {
+  background: var(--primary-main) !important;
+  color: var(--primary-contrast) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+
 

@@ -235,4 +235,50 @@ describe('Regressão de Estilo — Falha se houver cores fixas fora de tokens no
     expect(tokensCss).toContain('--select-bg:')
     expect(tokensCss).toContain('--select-text:')
   })
+
+  it('todos os tokens da paleta de cores por quadro (BOARD_COLOR_PALETTE) possuem contraste >= 4.5:1 nos dois temas', async () => {
+    const { BOARD_COLOR_PALETTE } = await import('./general-views')
+
+    expect(BOARD_COLOR_PALETTE.length).toBeGreaterThanOrEqual(8)
+
+    for (const item of BOARD_COLOR_PALETTE) {
+      const lightRatio = getContrastRatio(item.light.text, item.light.bg)
+      expect(
+        lightRatio,
+        `Cor ${item.key} no tema claro (texto ${item.light.text} sobre ${item.light.bg}) deve ter contraste >= 4.5:1 (atual: ${lightRatio.toFixed(2)})`
+      ).toBeGreaterThanOrEqual(4.5)
+
+      const darkRatio = getContrastRatio(item.dark.text, item.dark.bg)
+      expect(
+        darkRatio,
+        `Cor ${item.key} no tema escuro (texto ${item.dark.text} sobre ${item.dark.bg}) deve ter contraste >= 4.5:1 (atual: ${darkRatio.toFixed(2)})`
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('chat.css, modern-tasks.css e general-views.css possuem suporte completo e robusto ao modo escuro (:root[data-theme="dark"])', () => {
+    const chatCss = fs.readFileSync(path.resolve(__dirname, 'chat.css'), 'utf-8')
+    const modernTasksCss = fs.readFileSync(path.resolve(__dirname, 'modern-tasks.css'), 'utf-8')
+    const generalViewsCss = fs.readFileSync(path.resolve(__dirname, 'general-views.css'), 'utf-8')
+    const darkThemeCss = fs.readFileSync(path.resolve(__dirname, 'dark-theme.css'), 'utf-8')
+
+    // chat.css
+    expect(chatCss).toContain(":root[data-theme='dark'] .chat-sidebar-panel")
+    expect(chatCss).toContain(":root[data-theme='dark'] .chat-conversation-panel")
+    expect(chatCss).toContain(":root[data-theme='dark'] .chat-message-stream")
+    expect(chatCss).toContain(":root[data-theme='dark'] .chat-composer-box")
+
+    // modern-tasks.css
+    expect(modernTasksCss).toContain(":root[data-theme='dark'] .task-detail-modal-v2")
+    expect(modernTasksCss).toContain(":root[data-theme='dark'] .new-task-modal-v2")
+    expect(modernTasksCss).toContain(":root[data-theme='dark'] .template-checkbox-item-v2")
+
+    // general-views.css
+    expect(generalViewsCss).toContain(":root[data-theme='dark'] .task-board-chip")
+    expect(generalViewsCss).toContain(":root[data-theme='dark'] .general-filter-popover")
+
+    // dark-theme.css
+    expect(darkThemeCss).toContain(":root[data-theme='dark'] .board-tab.active")
+    expect(darkThemeCss).toContain(":root[data-theme='dark'] .board-tab-tag")
+  })
 })

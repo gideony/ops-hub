@@ -1,4 +1,8 @@
-import type { Board, BoardStage, Sprint, Stage, Task } from './lib'
+import type { Board, BoardStage, Sprint, Stage, Task, StageDisplayInfo } from './lib'
+import { resolveTaskStage } from './lib'
+
+export type { StageDisplayInfo }
+export { resolveTaskStage }
 
 export type ReportExclusiveStatus = 'active' | 'done' | 'blocked' | 'backlog'
 export type ReportFilterStatus = 'all' | ReportExclusiveStatus | 'overdue'
@@ -20,13 +24,6 @@ export type ReportFilters = {
   hideBranches?: boolean
 }
 
-export type StageDisplayInfo = {
-  id: string
-  name: string
-  color: string
-  isFinal: boolean
-  isPause: boolean
-}
 
 export type BoardSummaryRow = {
   boardId: string
@@ -154,49 +151,6 @@ export function getPresetDates(preset: PeriodPreset, todayStr: string): { from: 
   return { from: '', to: '' }
 }
 
-export function resolveTaskStage(
-  task: Task,
-  stages: Stage[],
-  boardStages: BoardStage[] = []
-): StageDisplayInfo {
-  // 1. Se a tarefa pertence a um quadro customizado, busca em board_stages
-  if (task.board_id && task.board_id !== 'board-geral') {
-    const custom = boardStages.find(s => s.id === task.stage_id)
-    if (custom) {
-      return {
-        id: custom.id,
-        name: custom.name,
-        color: custom.color,
-        isFinal: custom.is_final,
-        isPause: false,
-      }
-    }
-  }
-
-  // 2. Quadro geral ou fallback
-  const globalStage = stages.find(s => s.id === task.stage_id)
-  if (globalStage) {
-    return {
-      id: globalStage.id,
-      name: globalStage.name,
-      color: globalStage.color,
-      isFinal: globalStage.is_final,
-      isPause: globalStage.is_pause,
-    }
-  }
-
-  // 3. Fallback com aviso para não esconder bugs silenciosamente
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn(`[reports] Tarefa ${task.id} em etapa não identificada: ${task.stage_id}`)
-  }
-  return {
-    id: task.stage_id,
-    name: 'Etapa sem identificação',
-    color: '#94a3b8',
-    isFinal: false,
-    isPause: false,
-  }
-}
 
 export function computeTaskStatus(
   task: Task,
@@ -272,23 +226,13 @@ export function buildReport(
 
     // Filtro de Dimensão: Quadro
     if (selectedBoardId === 'all') {
-      // "Todos os meus quadros": soma tarefas do Geral + tarefas de quadros personalizados.
-      // Visões por setor NUNCA duplicam tarefas aqui!
-      // Uma tarefa pertence ou ao Geral (board_id nulo ou 'board-geral') ou a um quadro customizado.
       return true
     }
     if (selectedBoardId === 'board-geral') {
       return !task.board_id || task.board_id === 'board-geral'
     }
     if (selectedBoard) {
-      if (selectedBoard.type === 'sector_view') {
-        // Visão por setor: tarefas do Geral que estão nas etapas do setor
-        const isGeneralTask = !task.board_id || task.board_id === 'board-geral' || task.board_id === selectedBoard.id
-        return isGeneralTask && selectedBoard.stage_ids.includes(task.stage_id)
-      }
-      if (selectedBoard.type === 'custom') {
-        return task.board_id === selectedBoard.id
-      }
+      return task.board_id === selectedBoard.id
     }
     return true
   })
@@ -359,35 +303,13 @@ export function buildReport(
   totals.branchesCount = processed.filter(p => !!p.task.origin_task_id).length
 
   // 4. Quadro-Resumo de Indicadores por Quadro (Board Summaries)
-  const canonicalGeneral: Board = boards.find(b => b.id === 'board-geral') || {
-    id: 'board-geral',
-    name: 'Geral',
-    description: 'Quadro Geral corporativo',
-    type: 'general',
-    methodology: 'kanban',
-    team_id: null,
-    is_shared: true,
-    stage_ids: stages.map(s => s.id),
-    position: 0,
-    created_by: 'system',
-    created_at: '',
-    updated_at: '',
-  }
-
-  const relevantBoards: Board[] = [
-    canonicalGeneral,
-    ...boards.filter(b => b.id !== 'board-geral'),
-  ]
+  // Considera estritamente quadros reais ativos (sem Geral canônico nem visões de setor)
+  const relevantBoards: Board[] = boards.filter(
+    b => b.id !== 'board-geral' && b.type !== 'general' && b.type !== 'sector_view' && (b as { is_active?: boolean }).is_active !== false
+  )
 
   const boardSummaries: BoardSummaryRow[] = relevantBoards.map(b => {
-    let boardTasks: ProcessedTask[] = []
-    if (b.type === 'general') {
-      boardTasks = processed.filter(p => !p.task.board_id || p.task.board_id === 'board-geral')
-    } else if (b.type === 'sector_view') {
-      boardTasks = processed.filter(p => (!p.task.board_id || p.task.board_id === 'board-geral' || p.task.board_id === b.id) && b.stage_ids.includes(p.task.stage_id))
-    } else {
-      boardTasks = processed.filter(p => p.task.board_id === b.id)
-    }
+    const boardTasks = processed.filter(p => p.task.board_id === b.id)
 
     const rowDone = boardTasks.filter(p => p.status === 'done').length
     const rowTotal = boardTasks.length

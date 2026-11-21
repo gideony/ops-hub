@@ -26,6 +26,44 @@ Deno.serve(async request => {
     const admin = createClient(url, service)
     const input = await request.json()
 
+    const { data: caller, error: callerError } = await admin.from('profiles').select('role,active,is_master').eq('id', auth.user.id).single()
+    if (callerError || !caller?.active) return response({ error: 'Sem permissão' }, 403)
+    if (caller.role !== 'administrador') return response({ error: 'Apenas administradores podem gerenciar usuários' }, 403)
+
+    // Ação: Excluir usuário
+    if (input.action === 'delete') {
+      const targetUserId = String(input.user_id || '')
+      if (!/^[0-9a-f-]{36}$/i.test(targetUserId)) return response({ error: 'ID de usuário inválido' }, 400)
+      if (targetUserId === auth.user.id) return response({ error: 'Você não pode excluir seu próprio usuário logado' }, 400)
+
+      const { data: targetProfile, error: targetError } = await admin.from('profiles').select('id,role,is_master,full_name').eq('id', targetUserId).single()
+      if (targetError || !targetProfile) return response({ error: 'Usuário não encontrado' }, 404)
+      if (targetProfile.is_master) return response({ error: 'Não é permitido excluir o administrador master da organização' }, 403)
+      if (targetProfile.role === 'administrador' && !caller.is_master) {
+        return response({ error: 'Apenas o Administrador Master pode excluir outro administrador' }, 403)
+      }
+
+      // Executa a deleção/limpeza via RPC segura
+      const { error: rpcError } = await admin.rpc('delete_managed_user', { p_user_id: targetUserId })
+      if (rpcError) {
+        // Fallback transparente se a RPC não tiver sido aplicada
+        await admin.from('team_members').delete().eq('user_id', targetUserId)
+        await admin.from('message_reads').delete().eq('user_id', targetUserId)
+        await admin.from('tasks').update({ assignee_id: null }).eq('assignee_id', targetUserId)
+        const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', targetUserId)
+        if (profileDeleteError) {
+          await admin.from('profiles').update({ active: false, full_name: `${targetProfile.full_name} (Excluído)` }).eq('id', targetUserId)
+        }
+      }
+
+      // Remove do Supabase Auth
+      try {
+        await admin.auth.admin.deleteUser(targetUserId)
+      } catch {}
+
+      return response({ ok: true, deleted: true })
+    }
+
     const userId = String(input.user_id || '')
     const email = String(input.email || '').trim().toLowerCase()
     const fullName = String(input.full_name || '').trim()
@@ -43,10 +81,6 @@ Deno.serve(async request => {
     if (temporaryPassword && (temporaryPassword.length < 8 || temporaryPassword.length > 128)) {
       return response({ error: 'A senha temporária deve ter de 8 a 128 caracteres' }, 400)
     }
-
-    const { data: caller, error: callerError } = await admin.from('profiles').select('role,active,is_master').eq('id', auth.user.id).single()
-    if (callerError || !caller?.active) return response({ error: 'Sem permissão' }, 403)
-    if (caller.role !== 'administrador') return response({ error: 'Apenas administradores podem gerenciar usuários' }, 403)
 
     // Chama a função atômica com service_role
     const { error: rpcError } = await admin.rpc('save_managed_user', {

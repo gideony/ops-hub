@@ -8,6 +8,7 @@ import {
   Mail,
   Phone,
   ShieldCheck,
+  Trash2,
   UserCheck,
   UserRound,
   Users,
@@ -30,6 +31,7 @@ type Props = {
   notify: (message: string) => void
   onSaved: (user: Profile) => void
   onClose: () => void
+  onDelete?: (user: Profile) => Promise<void> | void
 }
 
 const roleLabels: Record<Profile['role'], string> = {
@@ -49,6 +51,7 @@ export default function UserEditor({
   notify,
   onSaved,
   onClose,
+  onDelete,
 }: Props) {
   const [name, setName] = useState(user.full_name)
   const [email, setEmail] = useState(user.email || '')
@@ -90,6 +93,11 @@ export default function UserEditor({
 
   const isSelf = user.id === currentUserId
   const locked = user.is_master || isSelf
+  const canDeleteUser =
+    Boolean(onDelete) &&
+    !user.is_master &&
+    !isSelf &&
+    (canMaster || user.role !== 'administrador')
 
   const initials =
     user.full_name
@@ -501,6 +509,28 @@ export default function UserEditor({
           </div>
 
           <div className="user-editor-footer">
+            {canDeleteUser ? (
+              <button
+                type="button"
+                className="btn btn-ghost text-danger"
+                disabled={busy}
+                onClick={async () => {
+                  if (onDelete) {
+                    await onDelete(user)
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: 'var(--chip-danger-text, #ef4444)',
+                  marginRight: 'auto',
+                }}
+              >
+                <Trash2 size={15} />
+                Excluir usuário
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn btn-secondary"

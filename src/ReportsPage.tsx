@@ -84,26 +84,12 @@ export default function ReportsPage({ data, onTask }: Props) {
     setFilters(current => ({ ...current, from, to }))
   }
 
-  // Lista canônica de quadros disponíveis
-  const canonicalGeneral: Board = useMemo(() => ({
-    id: 'board-geral',
-    name: 'Geral',
-    description: 'Quadro Geral corporativo',
-    type: 'general',
-    methodology: 'kanban',
-    team_id: null,
-    is_shared: true,
-    stage_ids: data.stages.map(s => s.id),
-    position: 0,
-    created_by: 'system',
-    created_at: '',
-    updated_at: '',
-  }), [data.stages])
-
-  const allBoards: Board[] = useMemo(() => [
-    canonicalGeneral,
-    ...(data.boards || []).filter(b => b.id !== 'board-geral'),
-  ], [canonicalGeneral, data.boards])
+  // Lista de quadros reais disponíveis para relatórios
+  const allBoards: Board[] = useMemo(() => {
+    return (data.boards || []).filter(
+      b => b.id !== 'board-geral' && b.type !== 'general' && b.type !== 'sector_view' && (b as { is_active?: boolean }).is_active !== false
+    )
+  }, [data.boards])
 
   const selectedBoard = useMemo(() => {
     if (!filters.boardId || filters.boardId === 'all') return undefined
@@ -226,9 +212,6 @@ export default function ReportsPage({ data, onTask }: Props) {
     { key: 'overdue', icon: CalendarDays, subtitle: 'Prazo expirado' },
   ]
 
-  const sectorViews = allBoards.filter(b => b.type === 'sector_view')
-  const customBoards = allBoards.filter(b => b.type === 'custom')
-
   return (
     <section className="content reports-page">
       <div className="page-heading reports-heading">
@@ -285,28 +268,12 @@ export default function ReportsPage({ data, onTask }: Props) {
               value={filters.boardId || 'all'}
               onChange={event => setFilters(current => ({ ...current, boardId: event.target.value }))}
             >
-              <optgroup label="Visão Geral">
-                <option value="all">Todos os meus quadros</option>
-                <option value="board-geral">Quadro Geral (Canônico)</option>
-              </optgroup>
-              {sectorViews.length > 0 && (
-                <optgroup label="Visões por Setor (Filtros do Geral)">
-                  {sectorViews.map(view => (
-                    <option key={view.id} value={view.id}>
-                      Visão: {view.name} [Geral]
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {customBoards.length > 0 && (
-                <optgroup label="Quadros Personalizados">
-                  {customBoards.map(board => (
-                    <option key={board.id} value={board.id}>
-                      {board.name} ({board.methodology === 'scrum' ? 'Scrum' : 'Kanban'})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              <option value="all">Todos os meus quadros</option>
+              {allBoards.map(board => (
+                <option key={board.id} value={board.id}>
+                  {board.name} ({board.methodology === 'scrum' ? 'Scrum' : 'Kanban'})
+                </option>
+              ))}
             </select>
           </label>
 
