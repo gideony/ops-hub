@@ -2,7 +2,7 @@
  * Gerenciador de Rascunhos Seguros (Drafts)
  * 
  * Regras:
- * 1. Isolamento por usuário: chave 'somax_draft_${userId}_${formId}'.
+ * 1. Isolamento por usuário: chave 'opshub_draft_${userId}_${formId}'.
  * 2. Sanitização estrita: NUNCA persistir segredos, chaves de API, senhas ou tokens.
  *    Para o cadastro de clientes, a aba 'Integração' (chaves e valores) é estritamente proibida.
  * 3. Validade temporal: rascunhos com mais de 24 horas são descartados automaticamente.
@@ -18,7 +18,7 @@ export interface DraftEnvelope<T = Record<string, unknown>> {
 }
 
 const DRAFT_PREFIX = 'opshub_draft_'
-const LEGACY_DRAFT_PREFIX = 'somax_draft_'
+const LEGACY_DRAFT_PREFIX = 'opshub_legacy_draft_'
 const MAX_DRAFT_AGE_MS = 24 * 60 * 60 * 1000 // 24 horas
 
 const SENSITIVE_KEY_REGEX = /(?:^|_)(?:token|password|senha|secret|key|chave|api_key|apikey|auth|integration|integracao)(?:_|$)/i

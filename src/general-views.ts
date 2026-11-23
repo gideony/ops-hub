@@ -281,13 +281,9 @@ export function filterTasksBySituation(
 // ==========================================
 
 const GENERAL_MODE_PREFIX = 'opshub_user_general_mode_'
-const LEGACY_GENERAL_MODE_PREFIX = 'somax_user_general_mode_'
 const LATERAL_ORDER_PREFIX = 'opshub_user_lateral_block_order_'
-const LEGACY_LATERAL_ORDER_PREFIX = 'somax_user_lateral_block_order_'
 const ACCORDION_EXPANDED_PREFIX = 'opshub_user_consolidated_expanded_'
-const LEGACY_ACCORDION_EXPANDED_PREFIX = 'somax_user_consolidated_expanded_'
 const TABS_ORDER_PREFIX = 'opshub_user_board_tabs_order_'
-const LEGACY_TABS_ORDER_PREFIX = 'somax_user_board_tabs_order_'
 
 export function getUserGeneralMode(userId?: string): GeneralViewMode {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
@@ -295,7 +291,7 @@ export function getUserGeneralMode(userId?: string): GeneralViewMode {
 
   if (!userId) return defaultMode
   try {
-    const val = localStorage.getItem(`${GENERAL_MODE_PREFIX}${userId}`) ?? localStorage.getItem(`${LEGACY_GENERAL_MODE_PREFIX}${userId}`)
+    const val = localStorage.getItem(`${GENERAL_MODE_PREFIX}${userId}`)
     if (val === 'lateral' || val === 'consolidado') return val
   } catch {}
   return defaultMode
@@ -305,14 +301,13 @@ export function setUserGeneralMode(userId: string | undefined, mode: GeneralView
   if (!userId) return
   try {
     localStorage.setItem(`${GENERAL_MODE_PREFIX}${userId}`, mode)
-    localStorage.setItem(`${LEGACY_GENERAL_MODE_PREFIX}${userId}`, mode)
   } catch {}
 }
 
 export function getUserLateralBlockOrder(userId: string | undefined, defaultBoardIds: string[]): string[] {
   if (!userId) return defaultBoardIds
   try {
-    const raw = localStorage.getItem(`${LATERAL_ORDER_PREFIX}${userId}`) ?? localStorage.getItem(`${LEGACY_LATERAL_ORDER_PREFIX}${userId}`)
+    const raw = localStorage.getItem(`${LATERAL_ORDER_PREFIX}${userId}`)
     if (raw) {
       const parsed: unknown = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
@@ -330,7 +325,6 @@ export function setUserLateralBlockOrder(userId: string | undefined, order: stri
   try {
     const json = JSON.stringify(order)
     localStorage.setItem(`${LATERAL_ORDER_PREFIX}${userId}`, json)
-    localStorage.setItem(`${LEGACY_LATERAL_ORDER_PREFIX}${userId}`, json)
   } catch {}
 }
 
@@ -345,7 +339,7 @@ export function getUserConsolidatedExpanded(
 
   if (!userId) return defaultState
   try {
-    const raw = localStorage.getItem(`${ACCORDION_EXPANDED_PREFIX}${userId}`) ?? localStorage.getItem(`${LEGACY_ACCORDION_EXPANDED_PREFIX}${userId}`)
+    const raw = localStorage.getItem(`${ACCORDION_EXPANDED_PREFIX}${userId}`)
     if (raw) {
       const parsed: unknown = JSON.parse(raw)
       if (parsed && typeof parsed === 'object') {
@@ -370,14 +364,13 @@ export function setUserConsolidatedExpanded(
   try {
     const json = JSON.stringify(state)
     localStorage.setItem(`${ACCORDION_EXPANDED_PREFIX}${userId}`, json)
-    localStorage.setItem(`${LEGACY_ACCORDION_EXPANDED_PREFIX}${userId}`, json)
   } catch {}
 }
 
 export function getUserBoardTabsOrder(userId: string | undefined, defaultTabIds: string[]): string[] {
   if (!userId) return defaultTabIds
   try {
-    const raw = localStorage.getItem(`${TABS_ORDER_PREFIX}${userId}`) ?? localStorage.getItem(`${LEGACY_TABS_ORDER_PREFIX}${userId}`)
+    const raw = localStorage.getItem(`${TABS_ORDER_PREFIX}${userId}`)
     if (raw) {
       const parsed: unknown = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
@@ -395,7 +388,6 @@ export function setUserBoardTabsOrder(userId: string | undefined, order: string[
   try {
     const json = JSON.stringify(order)
     localStorage.setItem(`${TABS_ORDER_PREFIX}${userId}`, json)
-    localStorage.setItem(`${LEGACY_TABS_ORDER_PREFIX}${userId}`, json)
   } catch {}
 }
 
@@ -404,7 +396,6 @@ export function setUserBoardTabsOrder(userId: string | undefined, order: string[
 // ==========================================
 
 const HIDE_EMPTY_COLS_PREFIX = 'opshub_user_hide_empty_cols_'
-const LEGACY_HIDE_EMPTY_COLS_PREFIX = 'somax_user_hide_empty_cols_'
 
 export function getUserHideEmptyColumns(
   userId: string | undefined,
@@ -415,7 +406,7 @@ export function getUserHideEmptyColumns(
   const defaultVal = mode === 'lateral'
   if (!userId) return defaultVal
   try {
-    const raw = localStorage.getItem(`${HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`) ?? localStorage.getItem(`${LEGACY_HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`)
+    const raw = localStorage.getItem(`${HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`)
     if (raw !== null) {
       return raw === 'true'
     }
@@ -432,7 +423,6 @@ export function setUserHideEmptyColumns(
   try {
     const val = String(hide)
     localStorage.setItem(`${HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`, val)
-    localStorage.setItem(`${LEGACY_HIDE_EMPTY_COLS_PREFIX}${mode}_${userId}`, val)
   } catch {}
 }
 

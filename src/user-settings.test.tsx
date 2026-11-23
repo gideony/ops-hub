@@ -89,10 +89,10 @@ describe('Módulo de Preferências do Usuário (user-preferences.ts)', () => {
       startPage: 'chat',
     })
 
-    expect(mockStorage.getItem('somax_general_mode_user-legacy')).toBe('consolidado')
-    expect(mockStorage.getItem('somax_hide_empty_cols_all_user-legacy')).toBe('true')
-    expect(mockStorage.getItem('somax_default_task_view_user-legacy')).toBe('lista')
-    expect(mockStorage.getItem('somax_start_page_user-legacy')).toBe('chat')
+    expect(mockStorage.getItem('opshub_general_mode_user-legacy')).toBe('consolidado')
+    expect(mockStorage.getItem('opshub_hide_empty_cols_all_user-legacy')).toBe('true')
+    expect(mockStorage.getItem('opshub_default_task_view_user-legacy')).toBe('lista')
+    expect(mockStorage.getItem('opshub_start_page_user-legacy')).toBe('chat')
   })
 
   it('playNotificationChime executa sem lançar erros em ambiente de teste', () => {

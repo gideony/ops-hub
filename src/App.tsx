@@ -138,7 +138,7 @@ export default function App() {
     return userPrefs.defaultTaskView === 'lista' ? 'lista' : 'kanban'
   })
   const [activeBoardId, setActiveBoardId] = useState<string>(() => {
-    try { return localStorage.getItem('opshub_active_board') || localStorage.getItem('somax_active_board') || 'board-geral' } catch { return 'board-geral' }
+    try { return localStorage.getItem('opshub_active_board') || 'board-geral' } catch { return 'board-geral' }
   })
   const [showCreateBoard, setShowCreateBoard] = useState(false)
   const [createBoardInitialTemplate, setCreateBoardInitialTemplate] = useState<string | null>(null)
@@ -212,7 +212,7 @@ export default function App() {
   const isManualSignOutRef = useRef<boolean>(false)
   const latestFetchIdRef = useRef(0)
 
-  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('opshub-theme',theme);localStorage.setItem('somax-hub-theme',theme)},[theme])
+  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('opshub-theme',theme)},[theme])
 
   useEffect(() => {
     if (demoMode) return
@@ -423,7 +423,6 @@ export default function App() {
     if (activeBoardId) {
       try {
         localStorage.setItem('opshub_active_board', activeBoardId)
-        localStorage.setItem('somax_active_board', activeBoardId)
       } catch {}
     }
   }, [activeBoardId])

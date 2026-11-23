@@ -317,7 +317,7 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
   Além disso, foi requerida a reordenação das abas de topo de Tarefas com indicador visual azul e acessibilidade por teclado, bem como regras rígidas contra duplicidade de tarefas e contra movimentações indevidas entre quadros distintos.
 - **Decisões Técnicas:**
   1. **Persistência de Preferências do Usuário:**
-     - Optou-se pela recomendação técnica de armazenamento local tipado (`localStorage`) com chaves isoladas por ID de usuário (`somax_user_general_mode_${userId}`, `somax_user_lateral_block_order_${userId}`, `somax_user_consolidated_expanded_${userId}`, `somax_user_board_tabs_order_${userId}`).
+     - Optou-se pela recomendação técnica de armazenamento local tipado (`localStorage`) com chaves isoladas por ID de usuário (`opshub_user_general_mode_${userId}`, `opshub_user_lateral_block_order_${userId}`, `opshub_user_consolidated_expanded_${userId}`, `opshub_user_board_tabs_order_${userId}`).
      - *Motivo:* Zero latência de rede, reatividade imediata na interface, total suporte ao modo demonstração (`src/demo.ts`) sem exigir rede ou migrations, e isolamento rigoroso entre múltiplos perfis que compartilhem o mesmo dispositivo.
   2. **Motor Canônico de Etapas e Status:**
      - Criação da função exportada `getStagesForBoard(board, canonicalStages, customBoardStages)` em `src/general-views.ts`, unificando a extração de colunas para quadros canônicos e customizados.
@@ -1076,5 +1076,32 @@ O chat da equipe necessitava de evolução para suportar gestão completa de can
   - Todos os comportamentos (clique de navegação, drag-and-drop, reordenação acessível, criação de quadros) preservados intactos.
   - Suíte completa de 313 testes Vitest aprovados (100% verde).
   - Compilação de produção (`npm run build`) concluída com código 0 em 7.60s.
+
+---
+
+## ADR-035: Conclusão do Rebranding e Saneamento Estrutural para OPSHUB
+
+- **Data:** 2026-11-23
+- **Status:** Aprovado
+- **Contexto:**
+  Após a transição inicial de marca e publicação no GitHub oficial `https://github.com/gideony/ops-hub`, remanesciam no repositório chaves legadas e arquivos com referências a "somax" e "somaxhub":
+  1. Arquivo de consolidação de migrations nomeado `supabase/todas_migrations_somax_hub.sql`;
+  2. Nomes de pacotes em `package-lock.json` e metadados de projeto em `supabase/.temp/linked-project.json`;
+  3. Prefixos e chaves de persistência em `localStorage` com espelhamento duplo desnecessário (`somax_active_board`, `somax-hub-theme`, `somax_muted_channels`, `somax_draft_`, `somax_user_...`, `somax_last_task_board_`);
+  4. Comentários em scripts SQL mestres e documentações de auditoria / relatórios do sistema.
+- **Decisões Técnicas:**
+  1. **Renomeação de Arquivos:**
+     - `supabase/todas_migrations_somax_hub.sql` renomeado para `supabase/todas_migrations_opshub.sql` via `git mv`.
+  2. **Unificação de Chaves no Armazenamento Local:**
+     - Eliminadas as escritas e leituras duplicadas com prefixo `somax_`, unificando as chaves exclusivamente no padrão canônico `opshub_` (`opshub_active_board`, `opshub-theme`, `opshub_muted_channels`, `opshub_draft_`, `opshub_user_preferences_`, `opshub_general_mode_`, etc.).
+  3. **Preservação da Regra Global 4 (Imutabilidade de Migrations):**
+     - Em estrita conformidade com a Regra 4 de `AGENTS.md`, os arquivos em `supabase/migrations/` permaneceram inalterados para evitar divergência de checksum no Supabase CLI. Scripts auxiliares e de bootstrap mestre foram 100% atualizados para OPSHUB.
+  4. **Metadados e Dependências:**
+     - Saneado `package-lock.json` e `linked-project.json` para o identificador oficial `opshub`.
+- **Consequências:**
+  - Código-fonte limpo, consistente e 100% padronizado na marca OPSHUB.
+  - Zero arquivos com somax no nome em todo o projeto.
+  - Suíte de 313 testes Vitest 100% aprovada e build de produção validado sem advertências de tipagem.
+
 
 

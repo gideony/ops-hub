@@ -101,7 +101,7 @@ O **OPSHUB** passou por uma auditoria completa e aprofundada de código, schema 
 | **CONC-04** | **Média** | Confirmado | Concordância Documental | `docs/decisoes.md:116-118` vs Banco | `decisoes.md` cita "Negociações", "Atividades em pausa", "Backlog Desenvolvimento". | Inconsistência entre especificação documental e schema de banco/demo.ts. | Atualizar `decisoes.md` com os nomes oficiais canônicos. | P |
 | **FALTA-03** | **Média** | Confirmado | Resiliência Operacional | Operação e Infraestrutura | Falta de rotina documentada de backup e script de rollback (`down.sql`) de migrations. | Recuperação lenta e propensa a erros manuais em caso de falha grave. | Documentar procedimento padrão de pg_dump e criar scripts de contingência. | M |
 | **FALTA-04** | **Média** | Confirmado | Governança de Dados | Tabelas `tasks`, `clients`, `boards` | Exclusões são definitivas (`DELETE` cascata ou desvinculação física). | Perda definitiva de demandas e histórico por exclusão acidental. | Implementar lixeira com exclusão lógica (`deleted_at`). | M |
-| **FALTA-05** | **Média** | Confirmado | Higiene do Repositório | Pasta `supabase/` | Arquivos de dumps manuais versionados (`todas_migrations_somax_hub.sql`, `.zip`, etc.). | Confusão sobre fonte de verdade e poluição do versionamento. | Limpar scripts redundantes da pasta de migrations versionadas. | P |
+| **FALTA-05** | **Média** | Confirmado | Higiene do Repositório | Pasta `supabase/` | Arquivos de dumps manuais versionados (`todas_migrations_opshub.sql`, `.zip`, etc.). | Confusão sobre fonte de verdade e poluição do versionamento. | Limpar scripts redundantes da pasta de migrations versionadas. | P |
 | **CONC-05** | **Baixa** | Confirmado | Concordância Front-end | `src/lib.ts:213` | Verificação de bloqueio no bucket usa `stages.find` em vez de `allStages.find`. | Inconsistência cosmética caso quadros customizados usem status de pausa. | Substituir `stages.find` por `allStages.find`. | P |
 
 ---
@@ -118,7 +118,7 @@ O **OPSHUB** passou por uma auditoria completa e aprofundada de código, schema 
      ```json
      {
        "user_id": "<UUID_DO_ADMINISTRADOR_MASTER>",
-       "email": "hacker@somax.example",
+       "email": "hacker@opshub.example",
        "full_name": "Administrador Master",
        "whatsapp": "+5511999990101",
        "role": "administrador",

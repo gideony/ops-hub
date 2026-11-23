@@ -118,7 +118,7 @@ Abra [http://localhost:5173](http://localhost:5173) no seu navegador para utiliz
    VITE_SUPABASE_ANON_KEY=sua-chave-publica-anon
    ```
 3. No SQL Editor do Supabase, execute o script mestre consolidado:
-   - [`supabase/todas_migrations_somax_hub.sql`](supabase/todas_migrations_somax_hub.sql)
+   - [`supabase/todas_migrations_opshub.sql`](supabase/todas_migrations_opshub.sql)
 4. *(Opcional)* Para dados de exemplo, execute em seguida:
    - [`supabase/seed_demo.sql`](supabase/seed_demo.sql)
 5. Publique as Edge Functions administrativas para gestão de usuários e canais (`supabase/functions/`).
@@ -130,7 +130,7 @@ Abra [http://localhost:5173](http://localhost:5173) no seu navegador para utiliz
 
 O banco de dados PostgreSQL do OPSHUB é governado por políticas de segurança a nível de linha (**Row Level Security - RLS**) e funções transacionais atômicas (RPCs):
 
-- **Script Consolidado Mestre:** [`supabase/todas_migrations_somax_hub.sql`](supabase/todas_migrations_somax_hub.sql) reúne todo o schema, tabelas, RLS e triggers em um único arquivo, ideal para inicializar novos ambientes.
+- **Script Consolidado Mestre:** [`supabase/todas_migrations_opshub.sql`](supabase/todas_migrations_opshub.sql) reúne todo o schema, tabelas, RLS e triggers em um único arquivo, ideal para inicializar novos ambientes.
 - **Histórico Incremental:** A pasta [`supabase/migrations/`](supabase/migrations/) preserva o histórico sequencial de evolução da base, assegurando compatibilidade com o versionamento do Supabase CLI (`supabase db push`).
 
 ---

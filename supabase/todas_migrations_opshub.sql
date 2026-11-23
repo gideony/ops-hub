@@ -827,7 +827,7 @@ create policy tasks_delete on public.tasks for delete to authenticated using (
 -- ==============================================================================
 -- MIGRATION: 202611100002_update_kanban_flows.sql
 -- ==============================================================================
--- Atualização dos nomes de etapas e descrições dos fluxos operacionais da Somax.
+-- Atualização dos nomes de etapas e descrições dos fluxos operacionais do OPSHUB.
 
 -- 1. Renomeia etapas para refletir a nomenclatura exata do fluxo
 update public.stages set name = 'Desenvolvimento APP' where name = 'Desenvolvimento';
@@ -905,7 +905,7 @@ end $$;
 -- ==============================================================================
 -- MIGRATION: 202611100004_update_checklist_templates.sql
 -- ==============================================================================
--- Atualiza os templates e subtarefas dos grupos de checklist padrão da Somax
+-- Atualiza os templates e subtarefas dos grupos de checklist padrão do OPSHUB
 
 -- 1. Garante que todos os 13 grupos existam
 insert into public.checklist_template_groups (name, position)
@@ -2019,7 +2019,7 @@ begin
     raise exception 'Não autenticado';
   end if;
 
-  -- 1. Fuso horário oficial da Somax (America/Fortaleza)
+  -- 1. Fuso horário oficial do OPSHUB (America/Fortaleza)
   v_today := (timezone('America/Fortaleza', now()))::date;
 
   with active_sprints as (

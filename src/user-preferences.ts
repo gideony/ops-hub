@@ -33,16 +33,12 @@ function getStorageKey(userId?: string): string {
   return `opshub_user_preferences_${userId || 'default'}`
 }
 
-function getLegacyStorageKey(userId?: string): string {
-  return `somax_user_preferences_${userId || 'default'}`
-}
-
 /**
  * Carrega as preferências salvas do usuário ou retorna o padrão seguro.
  */
 export function getUserPreferences(userId?: string): UserPreferences {
   try {
-    const raw = localStorage.getItem(getStorageKey(userId)) ?? localStorage.getItem(getLegacyStorageKey(userId))
+    const raw = localStorage.getItem(getStorageKey(userId))
     if (!raw) return { ...DEFAULT_USER_PREFERENCES }
     const parsed = JSON.parse(raw)
     return {
@@ -61,7 +57,7 @@ export function getUserPreferences(userId?: string): UserPreferences {
 }
 
 /**
- * Salva as preferências do usuário no armazenamento local e sincroniza chaves legadas.
+ * Salva as preferências do usuário no armazenamento local e sincroniza chaves modernas.
  */
 export function saveUserPreferences(userId: string | undefined, prefs: Partial<UserPreferences>): UserPreferences {
   const current = getUserPreferences(userId)
@@ -70,30 +66,23 @@ export function saveUserPreferences(userId: string | undefined, prefs: Partial<U
   try {
     const json = JSON.stringify(updated)
     localStorage.setItem(getStorageKey(userId), json)
-    localStorage.setItem(getLegacyStorageKey(userId), json)
 
-    // Sincroniza chaves legadas e modernas para compatibilidade instantânea com general-views.ts e App.tsx
+    // Sincroniza chaves modernas para compatibilidade instantânea com general-views.ts e App.tsx
     const suffix = userId || 'default'
     if (prefs.defaultGeneralMode) {
       localStorage.setItem(`opshub_general_mode_${suffix}`, prefs.defaultGeneralMode)
-      localStorage.setItem(`somax_general_mode_${suffix}`, prefs.defaultGeneralMode)
     }
     if (prefs.hideEmptyColumns !== undefined) {
       const val = String(prefs.hideEmptyColumns)
       localStorage.setItem(`opshub_hide_empty_cols_all_${suffix}`, val)
-      localStorage.setItem(`somax_hide_empty_cols_all_${suffix}`, val)
       localStorage.setItem(`opshub_hide_empty_cols_lateral_${suffix}`, val)
-      localStorage.setItem(`somax_hide_empty_cols_lateral_${suffix}`, val)
       localStorage.setItem(`opshub_hide_empty_cols_consolidado_${suffix}`, val)
-      localStorage.setItem(`somax_hide_empty_cols_consolidado_${suffix}`, val)
     }
     if (prefs.startPage) {
       localStorage.setItem(`opshub_start_page_${suffix}`, prefs.startPage)
-      localStorage.setItem(`somax_start_page_${suffix}`, prefs.startPage)
     }
     if (prefs.defaultTaskView) {
       localStorage.setItem(`opshub_default_task_view_${suffix}`, prefs.defaultTaskView)
-      localStorage.setItem(`somax_default_task_view_${suffix}`, prefs.defaultTaskView)
     }
   } catch {}
 
