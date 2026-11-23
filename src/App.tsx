@@ -97,10 +97,22 @@ function Field({ label, children }: { label: string; children: ReactNode }) { re
 function Empty({ text }: { text: string }) { return <div className="empty"><CircleHelp size={27}/><p>{text}</p></div> }
 
 export default function App() {
-  const demoMode = !configured
-  const [session, setSession] = useState<Session | null>(null)
+  const isForcedDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('modo') === 'demo'
+  const demoMode = !configured || isForcedDemo
+  const [session, setSession] = useState<Session | null>(() => {
+    if (isForcedDemo) {
+      const master = demoData.profiles.find(person => person.is_master) || demoData.profiles[0]
+      return { user: { id: master.id, email: master.email || '', user_metadata: {} }, access_token: 'demo' } as Session
+    }
+    return null
+  })
   const [authReady, setAuthReady] = useState(demoMode)
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(() => {
+    if (isForcedDemo) {
+      return demoData.profiles.find(person => person.is_master) || demoData.profiles[0]
+    }
+    return null
+  })
   const [data, setData] = useState<Data>(demoMode ? demoData : empty)
   const [loading, setLoading] = useState(!demoMode)
   const [error, setError] = useState('')

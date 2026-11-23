@@ -23,31 +23,31 @@
 ### 1. Dashboard Operacional & Panorama de Fluxo
 Painel executivo com métricas contextuais, alertas de limite de trabalho em andamento (WIP), acompanhamento de sprints ativas e capacidade da equipe.
 <p align="center">
-  <img src="docs/screenshots/dashboard.svg" alt="Dashboard Operacional OPSHUB" width="100%" />
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard Operacional OPSHUB" width="100%" />
 </p>
 
 ### 2. Gestão de Tarefas (Kanban & Scrum)
 Quadros flexíveis por setor, limites WIP visuais, modelos dinâmicos, ordenação de backlog, sprints ágeis com Burndown e ramificação de tarefas com linha do tempo imutável.
 <p align="center">
-  <img src="docs/screenshots/kanban.svg" alt="Quadro Kanban e Scrum OPSHUB" width="100%" />
+  <img src="docs/screenshots/kanban.png" alt="Quadro Kanban e Scrum OPSHUB" width="100%" />
 </p>
 
 ### 3. Chat da Equipe em Tempo Real
 Canais colaborativos por equipe, menções `@usuario` e `@todos`, edição inline, soft-delete compatível com LGPD, contadores de mensagens não lidas e badges integrados.
 <p align="center">
-  <img src="docs/screenshots/chat.svg" alt="Chat da Equipe em Tempo Real" width="100%" />
+  <img src="docs/screenshots/chat.png" alt="Chat da Equipe em Tempo Real" width="100%" />
 </p>
 
 ### 4. Relatórios & Analytics Multidimensional
 Consolidação analítica por quadro, status mutuamente exclusivos (`active` + `done` + `blocked` + `backlog`), cálculo canônico de atrasos e exportação para CSV compatível com o Excel.
 <p align="center">
-  <img src="docs/screenshots/reports.svg" alt="Relatórios e Analytics por Quadro" width="100%" />
+  <img src="docs/screenshots/reports.png" alt="Relatórios e Analytics por Quadro" width="100%" />
 </p>
 
 ### 5. Gestão de Clientes 360° & Fila de Quarentena
 Perfil completo com demandas vinculadas, dados de contato, notas financeiras, links técnicos seguros e fila de validação de autocadastros externos.
 <p align="center">
-  <img src="docs/screenshots/clients.svg" alt="Perfil do Cliente e Validação" width="100%" />
+  <img src="docs/screenshots/clients.png" alt="Perfil do Cliente e Validação" width="100%" />
 </p>
 
 ---
