@@ -247,7 +247,7 @@ export function ClientsPage({
   function handleExportSingleClient(client: Client) {
     const slug = client.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30)
     const today = new Date().toISOString().slice(0, 10)
-    downloadClientsCsv([client], `somax-cliente-${slug || 'ficha'}-${today}.csv`)
+    downloadClientsCsv([client], `opshub-cliente-${slug || 'ficha'}-${today}.csv`)
     notify(`Dados do cliente "${client.name}" exportados com sucesso!`)
   }
 
@@ -481,7 +481,7 @@ export function ClientsPage({
               <div className="client-logo">{initials(client.name)}</div>
               <div>
                 <h2>{client.name}</h2>
-                <p>{client.legal_name || 'Cliente Somax'}</p>
+                <p>{client.legal_name || 'Cliente OPSHUB'}</p>
               </div>
               <ArrowRight size={17} />
               <div className="client-meta">
@@ -852,7 +852,7 @@ export function TeamsPage({data,canAdmin,canManageTeam,preview,setData,run,notif
     if(preview){setData(current=>({...current,members:current.members.map(item=>item.team_id===teamId&&item.user_id===memberId?{...item,active:!active}:item)}));return}
     await run(async()=>{const {error}=await supabase.from('team_members').update({active:!active}).eq('team_id',teamId).eq('user_id',memberId);if(error)throw error},'Acesso à equipe atualizado')
   }
-  return <section className="content"><div className="page-heading"><div><div className="eyebrow">PESSOAS</div><h1>Equipes</h1><p>Times que fazem a Somax acontecer.</p></div>{canAdmin&&<button className="btn btn-primary" onClick={()=>openEditor(null)}><Plus size={16}/> Nova equipe</button>}</div>
+  return <section className="content"><div className="page-heading"><div><div className="eyebrow">PESSOAS</div><h1>Equipes</h1><p>Times que fazem o OPSHUB acontecer.</p></div>{canAdmin&&<button className="btn btn-primary" onClick={()=>openEditor(null)}><Plus size={16}/> Nova equipe</button>}</div>
     <div className="team-grid">{data.teams.map(team=>{const members=data.members.filter(item=>item.team_id===team.id&&item.active);return <button key={team.id} className="team-card" onClick={()=>setSelected(team)}><div className="team-icon" style={{background:team.color}}>{initials(team.name)}</div><h2>{team.name}</h2><p>{members.length} {members.length===1?'membro':'membros'}</p><div className="team-avatars">{members.slice(0,4).map(member=><span className="avatar avatar-xs" key={member.user_id}>{initials(data.profiles.find(person=>person.id===member.user_id)?.full_name||'?')}</span>)}</div><span className="team-view">Ver equipe <ArrowRight size={15}/></span></button>})}</div>
     {selected&&<Modal title={selected.name} onClose={()=>setSelected(null)}><div className="team-members"><div className="team-modal-head"><span>{data.members.filter(item=>item.team_id===selected.id&&item.active).length} membros ativos</span><div style={{display:'flex',gap:10,alignItems:'center'}}>{(preview||canManageTeam(selected.id))&&<button className="text-link" onClick={()=>openEditor(selected)}>Editar equipe</button>}{(preview||canAdmin)&&<button className="text-link text-danger" style={{color:'var(--chip-danger-text)'}} onClick={()=>void deleteTeam(selected)}>Excluir equipe</button>}</div></div>{data.members.filter(member=>member.team_id===selected.id).map(member=><div className="member-row" key={member.user_id}><span className="avatar avatar-xs">{initials(data.profiles.find(person=>person.id===member.user_id)?.full_name||'?')}</span><div><strong>{data.profiles.find(person=>person.id===member.user_id)?.full_name}</strong><small>{member.is_manager?'Gestor':'Colaborador'} · {member.active?'Ativo':'Inativo'}</small></div>{(preview||canManageTeam(selected.id))&&<button className="text-link" onClick={()=>void toggleMember(selected.id,member.user_id,member.active)}>{member.active?'Desativar':'Ativar'}</button>}</div>)}{!data.members.some(member=>member.team_id===selected.id)&&<Empty text="Ainda não há membros nesta equipe."/>}</div></Modal>}
     {editing!==undefined&&<Modal title={editing?'Editar equipe':'Nova equipe'} onClose={()=>setEditing(undefined)} dirty={Boolean(name.trim())}><form className="stack-form" onSubmit={event=>void save(event)}><Field label="Nome da equipe *"><input required autoFocus maxLength={80} value={name} onChange={event=>setName(event.target.value)} placeholder="Ex.: Suporte"/></Field><Field label="Cor"><input className="team-color-input" type="color" value={color} onChange={event=>setColor(event.target.value)}/></Field>{!editing&&<p className="hint">A equipe terá um canal privado Geral e você será seu gestor.</p>}{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div>{editing&&(preview||canAdmin)&&<button type="button" className="btn btn-ghost text-danger" style={{color:'var(--chip-danger-text)'}} onClick={()=>void deleteTeam(editing)} disabled={busy}>Excluir equipe</button>}</div><div style={{display:'flex',gap:8}}><button type="button" className="btn btn-secondary" onClick={()=>setEditing(undefined)} disabled={busy}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Salvando...':editing?'Salvar equipe':'Criar equipe'}</button></div></div></form></Modal>}

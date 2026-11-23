@@ -1,6 +1,6 @@
 ---
 name: design-ux
-description: Papel Design/UX do Somax Hub. Usar em novas telas, redesign de componentes, mensagens e estados de interface, com Tailwind v4, temas claro e escuro e acessibilidade.
+description: Papel Design/UX do OPSHUB. Usar em novas telas, redesign de componentes, mensagens e estados de interface, com Tailwind v4, temas claro e escuro e acessibilidade.
 ---
 
 # Design / UX

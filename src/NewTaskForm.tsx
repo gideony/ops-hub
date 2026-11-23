@@ -37,7 +37,8 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
     })
   }, [data.boards, data.profiles, userId, allowedTeams])
 
-  const LAST_BOARD_STORAGE_KEY = `somax_last_task_board_${userId}`
+  const LAST_BOARD_STORAGE_KEY = `opshub_last_task_board_${userId}`
+  const LEGACY_LAST_BOARD_STORAGE_KEY = `somax_last_task_board_${userId}`
 
   const [selectedBoardId, setSelectedBoardId] = useState<string>(() => {
     // Se o usuário está dentro de um quadro real (não Geral), pré-seleciona ele
@@ -46,7 +47,7 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
     }
     // No Geral, Dashboard ou lista: tenta recuperar o último quadro usado pelo usuário
     try {
-      const saved = localStorage.getItem(LAST_BOARD_STORAGE_KEY)
+      const saved = localStorage.getItem(LAST_BOARD_STORAGE_KEY) || localStorage.getItem(LEGACY_LAST_BOARD_STORAGE_KEY)
       if (saved && operationalBoards.some(b => b.id === saved)) {
         return saved
       }
@@ -243,6 +244,7 @@ export default function NewTaskForm({ data, userId, onClose, run, onDemoCreate, 
                     setSelectedBoardId(newId)
                     try {
                       localStorage.setItem(LAST_BOARD_STORAGE_KEY, newId)
+                      localStorage.setItem(LEGACY_LAST_BOARD_STORAGE_KEY, newId)
                     } catch {
                       // fallback silencioso
                     }

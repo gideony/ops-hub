@@ -360,7 +360,7 @@ export type StageDisplayInfo = {
 }
 
 /**
- * Resolução canônica de etapa para qualquer tarefa do Somax Hub (Geral ou Personalizado).
+ * Resolução canônica de etapa para qualquer tarefa do OPSHUB (Geral ou Personalizado).
  * Avalia prioritariamente o quadro da tarefa e suas etapas correspondentes.
  * O fallback por completed_at só é ativado se a etapa não puder ser resolvida.
  */

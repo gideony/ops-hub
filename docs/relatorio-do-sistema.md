@@ -1,4 +1,4 @@
-# Relatório Completo do Sistema e Funcionalidades — Somax Hub
+# Relatório Completo do Sistema e Funcionalidades — OPSHUB
 
 > **Versão do Documento:** 1.0  
 > **Data:** Novembro de 2026  
@@ -10,7 +10,7 @@
 
 ## 1. Visão Geral e Propósito
 
-O **Somax Hub** é uma plataforma corporativa integrada para gestão operacional, rastreamento de tarefas ponta a ponta, governança de processos interdepartamentais, relacionamento com clientes (CRM operacional) e comunicação interna segura em tempo real.
+O **OPSHUB** é uma plataforma corporativa integrada para gestão operacional, rastreamento de tarefas ponta a ponta, governança de processos interdepartamentais, relacionamento com clientes (CRM operacional) e comunicação interna segura em tempo real.
 
 O sistema foi arquitetado para resolver o atrito entre diferentes áreas da empresa (Comercial, Desenvolvimento, Design, Financeiro e Gestão), unificando demandas em quadros visuais intuitivos (**Kanban** e **Scrum**), automatizando a passagem de bastão através de **ramificações com linhagem histórica imutável**, e garantindo conformidade rigorosa com **segurança, LGPD e isolamento por equipe via Row Level Security (RLS)**.
 
@@ -27,7 +27,7 @@ O sistema foi arquitetado para resolver o atrito entre diferentes áreas da empr
 
 ```mermaid
 flowchart TD
-    HUB["Somax Hub"] --> DASH["1. Dashboard Operacional"]
+    HUB["OPSHUB"] --> DASH["1. Dashboard Operacional"]
     HUB --> TASKS["2. Tarefas e Fluxos de Trabalho"]
     HUB --> CLIENTS["3. Clientes e CRM Operacional"]
     HUB --> REPORTS["4. Relatórios e Indicadores"]
@@ -86,7 +86,7 @@ O Dashboard é o ponto focal de produtividade diária de operadores, gestores e 
 
 ### 3.2. Tarefas e Fluxos de Trabalho (Kanban e Scrum)
 
-O coração operacional do Somax Hub para execução de projetos e rotinas.
+O coração operacional do OPSHUB para execução de projetos e rotinas.
 
 #### 1. Tipos de Quadros Suportados:
 - **Quadro Geral (Canônico):** O quadro oficial e unificado com todas as 15 etapas padrão da empresa (`Backlog`, `Negociação`, `Contrato`, `Kick-off`, `Criação de Imagens`, `Desenvolvimento APP`, `Integração/Personalização`, `Homologação`, `Criação de Telas`, `Deploy`, `Aguardando Aprovação`, `Entrega`, `Faturamento`, `Concluído`, `Pausado`).
@@ -153,7 +153,7 @@ O coração operacional do Somax Hub para execução de projetos e rotinas.
 
 ### 3.3. Relacionamento e CRM Operacional de Clientes
 
-O Somax Hub centraliza a governança de dados cadastrais, financeiros e de integração dos clientes atendidos pelas equipes.
+O OPSHUB centraliza a governança de dados cadastrais, financeiros e de integração dos clientes atendidos pelas equipes.
 
 #### 1. Visualizações Principais:
 - **Modo Cartões:** Cards organizados com avatar com iniciais, nome fantasia, razão social, dados de contato principal e seta de navegação;
@@ -301,7 +301,7 @@ Mecanismos de controle corporativo, integridade de dados e proteção da informa
 ## 4. O Que o Sistema Tem (Arquitetura e Recursos Técnicos)
 
 ### 4.1. Banco de Dados e Migrations (PostgreSQL no Supabase)
-O schema do Somax Hub é mantido por uma sequência estrita e imutável de migrations versionadas:
+O schema do OPSHUB é mantido por uma sequência estrita e imutável de migrations versionadas:
 
 1. `202611100002_update_kanban_flows.sql`: Padronização das 15 etapas e regras de transição.
 2. `202611100003_admin_free_flow.sql`: Implementação do fluxo livre para administradores.

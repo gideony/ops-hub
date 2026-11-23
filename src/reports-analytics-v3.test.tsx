@@ -5,7 +5,7 @@ import { demoData } from './demo'
 import type { Data } from './App'
 import { getPresetDates, daysBetween } from './reports'
 
-describe('QA: Somax Analytics V3 — Placar Executivo, Presets e Novas Abas', () => {
+describe('QA: OPSHUB Analytics V3 — Placar Executivo, Presets e Novas Abas', () => {
   const dummyOnTask = () => {}
 
   it('renderiza os botões de presets rápidos de período no topo', () => {

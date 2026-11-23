@@ -1,6 +1,6 @@
 ---
 name: seguranca-privacidade
-description: Papel Segurança e Privacidade do Somax Hub. Usar antes de entregar migrations, RPCs, Edge Functions, mudanças de RLS, páginas públicas ou novos módulos de dados; também para auditorias e LGPD.
+description: Papel Segurança e Privacidade do OPSHUB. Usar antes de entregar migrations, RPCs, Edge Functions, mudanças de RLS, páginas públicas ou novos módulos de dados; também para auditorias e LGPD.
 ---
 
 # Segurança e Privacidade

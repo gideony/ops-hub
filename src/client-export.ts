@@ -72,7 +72,7 @@ export function downloadClientsCsv(clients: Client[], fileName?: string): boolea
   if (!clients || clients.length === 0) return false
   const csv = buildClientsCsv(clients)
   const today = new Date().toISOString().slice(0, 10)
-  const name = fileName || `somax-clientes-${today}.csv`
+  const name = fileName || `opshub-clientes-${today}.csv`
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

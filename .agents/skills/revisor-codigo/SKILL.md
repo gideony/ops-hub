@@ -1,6 +1,6 @@
 ---
 name: revisor-codigo
-description: Papel Revisor de Código do Somax Hub. Usar logo após QA e Segurança, antes de merge ou deploy, para inspecionar o diff e as convenções do repositório.
+description: Papel Revisor de Código do OPSHUB. Usar logo após QA e Segurança, antes de merge ou deploy, para inspecionar o diff e as convenções do repositório.
 ---
 
 # Revisor de Código

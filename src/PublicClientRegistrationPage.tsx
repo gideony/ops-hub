@@ -45,7 +45,7 @@ export function PublicClientRegistrationPage({ token, preview = false }: PublicC
 
   // Anti-leak, no-referrer & no-index
   useEffect(() => {
-    document.title = 'Cadastro de Parceiro | Somax'
+    document.title = 'Cadastro de Parceiro | OPSHUB'
 
     let metaRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null
     let createdRobots = false
@@ -72,7 +72,7 @@ export function PublicClientRegistrationPage({ token, preview = false }: PublicC
     }
 
     return () => {
-      document.title = 'Somax Hub'
+      document.title = 'OPSHUB'
       if (createdRobots && metaRobots) metaRobots.remove()
       if (createdReferrer && metaReferrer) metaReferrer.remove()
     }
@@ -152,7 +152,7 @@ export function PublicClientRegistrationPage({ token, preview = false }: PublicC
         setState('ready')
       } catch {
         if (active) {
-          setErrorMessage('Ocorreu um erro ao conectar aos serviços da Somax. Verifique sua conexão.')
+          setErrorMessage('Ocorreu um erro ao conectar aos serviços do OPSHUB. Verifique sua conexão.')
           setState('error')
         }
       }
@@ -293,7 +293,7 @@ export function PublicClientRegistrationPage({ token, preview = false }: PublicC
           <h2>Link Indisponível</h2>
           <p>{errorMessage || 'Este link de cadastro expirou ou não está mais ativo.'}</p>
           <small style={{ color: 'var(--text-secondary)', display: 'block' }}>
-            Caso precise realizar o cadastro, solicite um novo link diretamente ao seu responsável de atendimento na Somax.
+            Caso precise realizar o cadastro, solicite um novo link diretamente ao seu responsável de atendimento no OPSHUB.
           </small>
         </div>
       )}
@@ -319,9 +319,9 @@ export function PublicClientRegistrationPage({ token, preview = false }: PublicC
       {state === 'ready' && (
         <div className="public-reg-card">
           <div className="public-reg-header">
-            <div className="brand-mark">S</div>
+            <div className="brand-mark">O</div>
             <h1>Cadastro de Parceiro</h1>
-            <p>Preencha os dados da sua empresa para iniciarmos nossa colaboração na Somax.</p>
+            <p>Preencha os dados da sua empresa para iniciarmos nossa colaboração no OPSHUB.</p>
           </div>
 
           <form onSubmit={handleSubmit} noValidate>
@@ -519,7 +519,7 @@ export function PublicClientRegistrationPage({ token, preview = false }: PublicC
                   onChange={e => setLgpdAccepted(e.target.checked)}
                 />
                 <span>
-                  Declaro que sou representante autorizado desta empresa e concordo com o tratamento dos dados informados para fins de contato comercial, cadastro e prestação de serviços pela <strong>Somax</strong>, em conformidade com a Lei Geral de Proteção de Dados (LGPD).
+                  Declaro que sou representante autorizado desta empresa e concordo com o tratamento dos dados informados para fins de contato comercial, cadastro e prestação de serviços pelo <strong>OPSHUB</strong>, em conformidade com a Lei Geral de Proteção de Dados (LGPD).
                 </span>
               </label>
             </div>

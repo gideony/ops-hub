@@ -1,6 +1,6 @@
 ---
 name: verificar-entrega
-description: Verificação padrão de entrega do Somax Hub. Usar ao fechar um passo ou uma demanda, ou quando o usuário pedir para verificar, rodando status do Git, escopo do diff, testes e build.
+description: Verificação padrão de entrega do OPSHUB. Usar ao fechar um passo ou uma demanda, ou quando o usuário pedir para verificar, rodando status do Git, escopo do diff, testes e build.
 ---
 
 # Verificar entrega

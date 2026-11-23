@@ -1056,7 +1056,7 @@ export function ManageBoardsModal({ data, activeBoardId, canAdmin, userId, onSel
     {
       id: 'board-geral',
       name: 'Geral',
-      description: 'Quadro canônico oficial da Somax com todas as 15 etapas.',
+      description: 'Quadro canônico oficial do OPSHUB com todas as 15 etapas.',
       type: 'general',
       methodology: 'kanban',
       team_id: null,

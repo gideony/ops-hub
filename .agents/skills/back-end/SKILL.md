@@ -1,6 +1,6 @@
 ---
 name: back-end
-description: Papel Back-end do Somax Hub. Usar para RPCs SQL atômicas, triggers, Edge Functions em Deno e lógica de servidor, inclusive páginas públicas com token.
+description: Papel Back-end do OPSHUB. Usar para RPCs SQL atômicas, triggers, Edge Functions em Deno e lógica de servidor, inclusive páginas públicas com token.
 ---
 
 # Back-end

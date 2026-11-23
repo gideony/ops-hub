@@ -8,9 +8,9 @@ describe('PASSO 7: QA e Testes de Interface do Chat (ChatPage)', () => {
 
   const mockData: Data = {
     profiles: [
-      { id: 'user-admin', full_name: 'Administrador Somax', role: 'gestor', is_master: true, active: true, email: 'admin@somax.local' },
-      { id: 'user-dev-1', full_name: 'Desenvolvedor Um', role: 'colaborador', is_master: false, active: true, email: 'dev1@somax.local' },
-      { id: 'user-dev-2', full_name: 'Desenvolvedor Dois', role: 'colaborador', is_master: false, active: true, email: 'dev2@somax.local' }
+      { id: 'user-admin', full_name: 'Administrador OPSHUB', role: 'gestor', is_master: true, active: true, email: 'admin@opshub.local' },
+      { id: 'user-dev-1', full_name: 'Desenvolvedor Um', role: 'colaborador', is_master: false, active: true, email: 'dev1@opshub.local' },
+      { id: 'user-dev-2', full_name: 'Desenvolvedor Dois', role: 'colaborador', is_master: false, active: true, email: 'dev2@opshub.local' }
     ],
     teams: [
       { id: 'team-ti', name: 'Tecnologia da Informação', color: '#0284c7' }

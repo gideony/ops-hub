@@ -1,6 +1,6 @@
 ---
 name: documentacao
-description: Papel Documentação do Somax Hub. Usar ao final de cada entrega para atualizar README, changelog, lista de migrations, guias e docs/decisoes.md.
+description: Papel Documentação do OPSHUB. Usar ao final de cada entrega para atualizar README, changelog, lista de migrations, guias e docs/decisoes.md.
 ---
 
 # Documentação

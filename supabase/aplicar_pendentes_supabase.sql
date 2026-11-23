@@ -1,6 +1,6 @@
 --
 -- ==============================================================================
--- SCRIPT CONSOLIDADO DE ATUALIZAÇÃO DO SUPABASE (SOMAX HUB)
+-- SCRIPT CONSOLIDADO DE ATUALIZAÇÃO DO SUPABASE (OPSHUB)
 -- ==============================================================================
 -- Este script reúne todas as 5 migrations pendentes (de 14/11 a 16/11/2026).
 -- Ele é totalmente IDEMPOTENTE (utiliza IF NOT EXISTS e CREATE OR REPLACE).

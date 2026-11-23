@@ -126,7 +126,7 @@ export default function App() {
     return userPrefs.defaultTaskView === 'lista' ? 'lista' : 'kanban'
   })
   const [activeBoardId, setActiveBoardId] = useState<string>(() => {
-    try { return localStorage.getItem('somax_active_board') || 'board-geral' } catch { return 'board-geral' }
+    try { return localStorage.getItem('opshub_active_board') || localStorage.getItem('somax_active_board') || 'board-geral' } catch { return 'board-geral' }
   })
   const [showCreateBoard, setShowCreateBoard] = useState(false)
   const [createBoardInitialTemplate, setCreateBoardInitialTemplate] = useState<string | null>(null)
@@ -200,7 +200,7 @@ export default function App() {
   const isManualSignOutRef = useRef<boolean>(false)
   const latestFetchIdRef = useRef(0)
 
-  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('somax-hub-theme',theme)},[theme])
+  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('opshub-theme',theme);localStorage.setItem('somax-hub-theme',theme)},[theme])
 
   useEffect(() => {
     if (demoMode) return
@@ -409,7 +409,10 @@ export default function App() {
 
   useEffect(() => {
     if (activeBoardId) {
-      try { localStorage.setItem('somax_active_board', activeBoardId) } catch {}
+      try {
+        localStorage.setItem('opshub_active_board', activeBoardId)
+        localStorage.setItem('somax_active_board', activeBoardId)
+      } catch {}
     }
   }, [activeBoardId])
   useEffect(() => {
@@ -2288,7 +2291,7 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
-      <div className="brand"><strong className="brand-wordmark">SOMAX<span> HUB</span></strong></div>
+      <div className="brand"><strong className="brand-wordmark">OPS<span>HUB</span></strong></div>
       <div className="nav-label">Menu</div>
       <nav>{nav.filter(item=>!['teams','users','settings'].includes(item.page)).map(item => (
         <button key={item.page} onClick={() => { setPage(item.page); setMobileNav(false); if(item.page==='tasks')setTaskTab('tarefas') }} className={`nav-item ${page===item.page?'active':''}`}>
@@ -2309,7 +2312,7 @@ export default function App() {
       <nav><button onClick={() => { setPage('settings'); setMobileNav(false) }} className={`nav-item ${page==='settings'?'active':''}`}><Settings2 size={17}/><span>Configurações</span></button></nav>
       <div className="sidebar-bottom"><button className="theme-toggle" onClick={()=>setTheme(current=>current==='dark'?'light':'dark')} aria-label={theme==='dark'?'Ativar modo claro':'Ativar modo escuro'}>{theme==='dark'?<Sun size={15}/>:<Moon size={15}/>}<span>{theme==='dark'?'Modo Claro':'Modo Escuro'}</span></button><div className="sidebar-account"><button className="user-card" onClick={() => {setPage('settings');setMobileNav(false)}} aria-label="Abrir meu perfil"><div className="avatar">{initials(profile?.full_name || session.user.email || 'U')}</div><span><strong>{profile?.full_name || session.user.email}</strong><small>{profile?.is_master?'Administrador master':profile?.role || 'Usuário'}</small></span></button><button className="account-signout" onClick={()=>void handleSignOut()} aria-label="Sair da conta" title="Sair da conta"><LogOut size={17}/></button></div></div>
     </aside>
-    <main className="main"><header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Abrir menu"><Menu size={21}/></button><div className="breadcrumb">Somax <span>/</span> <strong>{nav.find(n=>n.page===page)?.label}</strong></div><div className="topbar-right"><div className="topbar-date"><CalendarDays size={16}/>{new Intl.DateTimeFormat('pt-BR', {day:'numeric',month:'long',year:'numeric'}).format(new Date())}</div><button className="icon-btn" aria-label={totalChatMentions > 0 ? `${totalChatMentions} menções não lidas` : totalChatUnread > 0 ? `${totalChatUnread} mensagens não lidas` : 'Notificações'} onClick={() => setPage('chat')} style={{ position: 'relative' }}><Bell size={19}/>{totalChatMentions > 0 ? <span className="chat-bell-badge mention">@{totalChatMentions}</span> : totalChatUnread > 0 ? <span className="chat-bell-badge unread">{totalChatUnread}</span> : null}</button><div className="avatar avatar-sm">{initials(profile?.full_name || 'U')}</div></div></header>
+    <main className="main"><header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Abrir menu"><Menu size={21}/></button><div className="breadcrumb">OPSHUB <span>/</span> <strong>{nav.find(n=>n.page===page)?.label}</strong></div><div className="topbar-right"><div className="topbar-date"><CalendarDays size={16}/>{new Intl.DateTimeFormat('pt-BR', {day:'numeric',month:'long',year:'numeric'}).format(new Date())}</div><button className="icon-btn" aria-label={totalChatMentions > 0 ? `${totalChatMentions} menções não lidas` : totalChatUnread > 0 ? `${totalChatUnread} mensagens não lidas` : 'Notificações'} onClick={() => setPage('chat')} style={{ position: 'relative' }}><Bell size={19}/>{totalChatMentions > 0 ? <span className="chat-bell-badge mention">@{totalChatMentions}</span> : totalChatUnread > 0 ? <span className="chat-bell-badge unread">{totalChatUnread}</span> : null}</button><div className="avatar avatar-sm">{initials(profile?.full_name || 'U')}</div></div></header>
       {demoMode && <div className="demo-banner"><strong>Prévia local</strong> · Dados fictícios. Para salvar no PostgreSQL e usar o chat em tempo real, configure o Supabase conforme o README.</div>}
       {error && <div className="toast toast-error" role="alert"><span>{error}</span><div className="toast-actions"><button type="button" className="btn-toast-retry" onClick={() => { setError(''); setLoading(true); reloadWithRetry().catch(e => setError(messageError(e))).finally(() => setLoading(false)) }}>Tentar novamente</button><button onClick={()=>setError('')} aria-label="Fechar erro"><X size={16}/></button></div></div>}
       {notice && <div className="toast toast-ok" role="status"><Check size={16}/>{notice}</div>}
@@ -2499,12 +2502,12 @@ function Login({preview,onPreviewLogin}:{preview:boolean;onPreviewLogin:()=>void
     else setForgotSent(true)
     setBusy(false)
   }
-  return <div className="login-screen"><div className="login-brand"><div className="brand-mark">S</div><strong>somax<span>hub</span></strong></div><div className="login-panel"><div className="eyebrow">BEM-VINDO DE VOLTA</div><h1>Seu trabalho flui melhor aqui.</h1><p>{preview?'Explore o painel com uma conta fictícia de administrador master.':'Entre com a conta criada pela Somax.'}</p>{preview?<div className="login-demo"><strong>Prévia local</strong><p>Sem autenticação real ou dados persistidos. Acesso de demonstração.</p><Button onClick={onPreviewLogin} className="full">Entrar na prévia <ArrowRight size={17}/></Button></div>:<form onSubmit={submit}><Field label="E-mail"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@somax.com.br" autoComplete="username"/></Field><Field label="Senha"><PasswordInput required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Sua senha" autoComplete="current-password"/></Field>{!preview && <div className="forgot-link">{forgotSent ? <span>E-mail de recuperação enviado!</span> : <button type="button" onClick={() => void forgotPassword()} disabled={!email.trim() || busy}>Esqueci minha senha</button>}</div>}{error && <div className="form-error">{error}</div>}<Button type="submit" disabled={busy} className="full">{busy?'Entrando...':'Entrar no hub'} <ArrowRight size={17}/></Button></form>}<small>{preview?'Configure o Supabase para usar sua conta real.':'Acesso restrito a usuários cadastrados.'}</small></div><div className="login-decoration"><div className="decoration-card"><span>✳  SOMAX HUB</span><h2>Projetos claros.<br/>Conversas em dia.<br/>Equipe conectada.</h2><div className="decoration-circles"><i/><i/><i/></div></div></div></div>
+  return <div className="login-screen"><div className="login-brand"><div className="brand-mark">O</div><strong>ops<span>hub</span></strong></div><div className="login-panel"><div className="eyebrow">BEM-VINDO DE VOLTA</div><h1>Seu trabalho flui melhor aqui.</h1><p>{preview?'Explore o painel com uma conta fictícia de administrador master.':'Entre com a conta criada pelo OPSHUB.'}</p>{preview?<div className="login-demo"><strong>Prévia local</strong><p>Sem autenticação real ou dados persistidos. Acesso de demonstração.</p><Button onClick={onPreviewLogin} className="full">Entrar na prévia <ArrowRight size={17}/></Button></div>:<form onSubmit={submit}><Field label="E-mail"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@opshub.com.br" autoComplete="username"/></Field><Field label="Senha"><PasswordInput required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Sua senha" autoComplete="current-password"/></Field>{!preview && <div className="forgot-link">{forgotSent ? <span>E-mail de recuperação enviado!</span> : <button type="button" onClick={() => void forgotPassword()} disabled={!email.trim() || busy}>Esqueci minha senha</button>}</div>}{error && <div className="form-error">{error}</div>}<Button type="submit" disabled={busy} className="full">{busy?'Entrando...':'Entrar no hub'} <ArrowRight size={17}/></Button></form>}<small>{preview?'Configure o Supabase para usar sua conta real.':'Acesso restrito a usuários cadastrados.'}</small></div><div className="login-decoration"><div className="decoration-card"><span>✳  OPSHUB</span><h2>Projetos claros.<br/>Conversas em dia.<br/>Equipe conectada.</h2><div className="decoration-circles"><i/><i/><i/></div></div></div></div>
 }
 function SetPassword() {
   const [password,setPassword]=useState(''); const [confirm,setConfirm]=useState(''); const [error,setError]=useState(''); const [busy,setBusy]=useState(false)
   async function submit(e:FormEvent){e.preventDefault();if(password!==confirm){setError('As senhas não coincidem.');return}if(password.length<8){setError('Use ao menos 8 caracteres.');return}setBusy(true);const {error}=await supabase.auth.updateUser({password,data:{must_set_password:false}});if(error)setError(error.message);setBusy(false)}
-  return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">S</div><h1>Ative sua conta</h1><p>Troque a senha temporária recebida da Somax para continuar.</p><form className="stack-form" onSubmit={e=>void submit(e)}><Field label="Nova senha"><PasswordInput required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></Field><Field label="Confirmar senha"><PasswordInput required value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password"/></Field>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Salvando...':'Ativar conta'}</Button></form></div></div>
+  return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">O</div><h1>Ative sua conta</h1><p>Troque a senha temporária recebida do OPSHUB para continuar.</p><form className="stack-form" onSubmit={e=>void submit(e)}><Field label="Nova senha"><PasswordInput required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></Field><Field label="Confirmar senha"><PasswordInput required value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password"/></Field>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Salvando...':'Ativar conta'}</Button></form></div></div>
 }
 
 

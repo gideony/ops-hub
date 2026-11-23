@@ -1,6 +1,6 @@
-# Somax Hub
+# OPSHUB
 
-Hub interno de tarefas e comunicação da Somax, em português do Brasil. Projeto independente em React, TypeScript, Vite, Tailwind CSS e Supabase. Os dados de demonstração são fictícios. Nenhum arquivo do sistema atual foi alterado.
+Hub interno de tarefas e comunicação do OPSHUB, em português do Brasil. Projeto independente em React, TypeScript, Vite, Tailwind CSS e Supabase. Os dados de demonstração são fictícios. Nenhum arquivo do sistema atual foi alterado.
 
 ## Preparação
 

@@ -1,6 +1,6 @@
 ---
 name: devops
-description: Papel DevOps do Somax Hub. Usar em build, Vite, variáveis de ambiente, CI, deploy de Edge Functions e aplicação de migrations pelo Supabase CLI.
+description: Papel DevOps do OPSHUB. Usar em build, Vite, variáveis de ambiente, CI, deploy de Edge Functions e aplicação de migrations pelo Supabase CLI.
 ---
 
 # DevOps

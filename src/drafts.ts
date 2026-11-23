@@ -17,7 +17,8 @@ export interface DraftEnvelope<T = Record<string, unknown>> {
   data: T
 }
 
-const DRAFT_PREFIX = 'somax_draft_'
+const DRAFT_PREFIX = 'opshub_draft_'
+const LEGACY_DRAFT_PREFIX = 'somax_draft_'
 const MAX_DRAFT_AGE_MS = 24 * 60 * 60 * 1000 // 24 horas
 
 const SENSITIVE_KEY_REGEX = /(?:^|_)(?:token|password|senha|secret|key|chave|api_key|apikey|auth|integration|integracao)(?:_|$)/i
@@ -61,6 +62,10 @@ export function getDraftStorageKey(userId: string, formId: string): string {
   return `${DRAFT_PREFIX}${userId}_${formId}`
 }
 
+export function getLegacyDraftStorageKey(userId: string, formId: string): string {
+  return `${LEGACY_DRAFT_PREFIX}${userId}_${formId}`
+}
+
 /**
  * Salva um rascunho no localStorage associado ao ID do usuário.
  */
@@ -75,7 +80,9 @@ export function saveDraft<T extends Record<string, unknown>>(userId: string, for
       savedAt: Date.now(),
       data: cleanData,
     }
-    window.localStorage.setItem(getDraftStorageKey(userId, formId), JSON.stringify(envelope))
+    const json = JSON.stringify(envelope)
+    window.localStorage.setItem(getDraftStorageKey(userId, formId), json)
+    window.localStorage.setItem(getLegacyDraftStorageKey(userId, formId), json)
   } catch {
     // Falha silenciosa em caso de cota de armazenamento ou restrição de cookies
   }
@@ -89,7 +96,7 @@ export function getDraft<T>(userId: string, formId: string): T | null {
   if (!userId || !formId || typeof window === 'undefined') return null
 
   try {
-    const raw = window.localStorage.getItem(getDraftStorageKey(userId, formId))
+    const raw = window.localStorage.getItem(getDraftStorageKey(userId, formId)) ?? window.localStorage.getItem(getLegacyDraftStorageKey(userId, formId))
     if (!raw) return null
 
     const envelope = JSON.parse(raw) as DraftEnvelope<T>
@@ -119,6 +126,7 @@ export function clearDraft(userId: string, formId: string): void {
   if (!userId || !formId || typeof window === 'undefined') return
   try {
     window.localStorage.removeItem(getDraftStorageKey(userId, formId))
+    window.localStorage.removeItem(getLegacyDraftStorageKey(userId, formId))
   } catch {
     // Ignorar falha de remoção
   }
@@ -131,10 +139,11 @@ export function clearUserDrafts(userId: string): void {
   if (!userId || typeof window === 'undefined') return
   try {
     const userPrefix = `${DRAFT_PREFIX}${userId}_`
+    const legacyUserPrefix = `${LEGACY_DRAFT_PREFIX}${userId}_`
     const keysToRemove: string[] = []
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i)
-      if (key && key.startsWith(userPrefix)) {
+      if (key && (key.startsWith(userPrefix) || key.startsWith(legacyUserPrefix))) {
         keysToRemove.push(key)
       }
     }

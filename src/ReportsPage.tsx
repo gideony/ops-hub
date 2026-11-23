@@ -188,7 +188,7 @@ export default function ReportsPage({ data, onTask }: Props) {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = `somax-relatorio-tarefas-${today}.csv`
+    link.download = `opshub-relatorio-tarefas-${today}.csv`
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
@@ -198,7 +198,7 @@ export default function ReportsPage({ data, onTask }: Props) {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = `somax-resumo-quadros-${today}.csv`
+    link.download = `opshub-resumo-quadros-${today}.csv`
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
@@ -399,7 +399,7 @@ export default function ReportsPage({ data, onTask }: Props) {
         </div>
       </div>
 
-      {/* Placar Executivo Somax Analytics */}
+      {/* Placar Executivo OPSHUB Analytics */}
       <div className="reports-executive-bar" role="region" aria-label="Placar Executivo">
         <button
           type="button"
@@ -1440,7 +1440,7 @@ export default function ReportsPage({ data, onTask }: Props) {
                     />
                   </div>
                   <div className="punctuality-kpi-subtext">
-                    Meta ideal Somax: &ge; 85% de entregas no prazo
+                    Meta ideal OPSHUB: &ge; 85% de entregas no prazo
                   </div>
                 </div>
               </div>

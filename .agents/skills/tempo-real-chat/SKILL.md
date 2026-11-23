@@ -1,6 +1,6 @@
 ---
 name: tempo-real-chat
-description: Papel Tempo Real e Chat do Somax Hub. Usar em canais Supabase Realtime, mensagens, anexos no bucket chat-private e sincronização ao vivo do Kanban.
+description: Papel Tempo Real e Chat do OPSHUB. Usar em canais Supabase Realtime, mensagens, anexos no bucket chat-private e sincronização ao vivo do Kanban.
 ---
 
 # Tempo Real e Chat

@@ -1,6 +1,6 @@
 ---
 name: banco-dados-rls
-description: Papel Banco de Dados e RLS do Somax Hub. Usar ao criar ou alterar tabelas, campos, índices, triggers, funções e políticas RLS, sempre por novas migrations.
+description: Papel Banco de Dados e RLS do OPSHUB. Usar ao criar ou alterar tabelas, campos, índices, triggers, funções e políticas RLS, sempre por novas migrations.
 ---
 
 # Banco de Dados e RLS

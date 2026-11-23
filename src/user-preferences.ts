@@ -1,5 +1,5 @@
 /**
- * Somax Hub — Módulo de Preferências do Usuário
+ * OPSHUB — Módulo de Preferências do Usuário
  * Centraliza tipagem, leitura e persistência resiliente de preferências pessoais.
  * Funciona offline (localStorage por userId) e no modo demonstração.
  */
@@ -30,6 +30,10 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
 }
 
 function getStorageKey(userId?: string): string {
+  return `opshub_user_preferences_${userId || 'default'}`
+}
+
+function getLegacyStorageKey(userId?: string): string {
   return `somax_user_preferences_${userId || 'default'}`
 }
 
@@ -38,7 +42,7 @@ function getStorageKey(userId?: string): string {
  */
 export function getUserPreferences(userId?: string): UserPreferences {
   try {
-    const raw = localStorage.getItem(getStorageKey(userId))
+    const raw = localStorage.getItem(getStorageKey(userId)) ?? localStorage.getItem(getLegacyStorageKey(userId))
     if (!raw) return { ...DEFAULT_USER_PREFERENCES }
     const parsed = JSON.parse(raw)
     return {
@@ -64,22 +68,32 @@ export function saveUserPreferences(userId: string | undefined, prefs: Partial<U
   const updated: UserPreferences = { ...current, ...prefs }
 
   try {
-    localStorage.setItem(getStorageKey(userId), JSON.stringify(updated))
+    const json = JSON.stringify(updated)
+    localStorage.setItem(getStorageKey(userId), json)
+    localStorage.setItem(getLegacyStorageKey(userId), json)
 
-    // Sincroniza chaves legadas para compatibilidade instantânea com general-views.ts e App.tsx
+    // Sincroniza chaves legadas e modernas para compatibilidade instantânea com general-views.ts e App.tsx
+    const suffix = userId || 'default'
     if (prefs.defaultGeneralMode) {
-      localStorage.setItem(`somax_general_mode_${userId || 'default'}`, prefs.defaultGeneralMode)
+      localStorage.setItem(`opshub_general_mode_${suffix}`, prefs.defaultGeneralMode)
+      localStorage.setItem(`somax_general_mode_${suffix}`, prefs.defaultGeneralMode)
     }
     if (prefs.hideEmptyColumns !== undefined) {
-      localStorage.setItem(`somax_hide_empty_cols_all_${userId || 'default'}`, String(prefs.hideEmptyColumns))
-      localStorage.setItem(`somax_hide_empty_cols_lateral_${userId || 'default'}`, String(prefs.hideEmptyColumns))
-      localStorage.setItem(`somax_hide_empty_cols_consolidado_${userId || 'default'}`, String(prefs.hideEmptyColumns))
+      const val = String(prefs.hideEmptyColumns)
+      localStorage.setItem(`opshub_hide_empty_cols_all_${suffix}`, val)
+      localStorage.setItem(`somax_hide_empty_cols_all_${suffix}`, val)
+      localStorage.setItem(`opshub_hide_empty_cols_lateral_${suffix}`, val)
+      localStorage.setItem(`somax_hide_empty_cols_lateral_${suffix}`, val)
+      localStorage.setItem(`opshub_hide_empty_cols_consolidado_${suffix}`, val)
+      localStorage.setItem(`somax_hide_empty_cols_consolidado_${suffix}`, val)
     }
     if (prefs.startPage) {
-      localStorage.setItem(`somax_start_page_${userId || 'default'}`, prefs.startPage)
+      localStorage.setItem(`opshub_start_page_${suffix}`, prefs.startPage)
+      localStorage.setItem(`somax_start_page_${suffix}`, prefs.startPage)
     }
     if (prefs.defaultTaskView) {
-      localStorage.setItem(`somax_default_task_view_${userId || 'default'}`, prefs.defaultTaskView)
+      localStorage.setItem(`opshub_default_task_view_${suffix}`, prefs.defaultTaskView)
+      localStorage.setItem(`somax_default_task_view_${suffix}`, prefs.defaultTaskView)
     }
   } catch {}
 

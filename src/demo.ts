@@ -3,11 +3,11 @@ import { DEFAULT_BOARD_TEMPLATES } from './lib'
 
 export const demoUserId = 'demo-admin'
 const profiles: Profile[] = [
-  {id:demoUserId,full_name:'Administrador Master',email:'master@somax.example',whatsapp:'+5511999990101',role:'administrador',active:true,is_master:true},
-  {id:'demo-bruno',full_name:'Bruno Costa',email:'bruno@somax.example',whatsapp:'+5511999990102',role:'gestor',active:true},
-  {id:'demo-camila',full_name:'Camila Martins',email:'camila@somax.example',whatsapp:'+5511999990103',role:'colaborador',active:true},
-  {id:'demo-diego',full_name:'Diego Ferreira',email:'diego@somax.example',whatsapp:'+5511999990104',role:'gestor',active:true},
-  {id:'demo-elisa',full_name:'Elisa Souza',email:'elisa@somax.example',whatsapp:'+5511999990105',role:'colaborador',active:true},
+  {id:demoUserId,full_name:'Administrador Master',email:'master@opshub.example',whatsapp:'+5511999990101',role:'administrador',active:true,is_master:true},
+  {id:'demo-bruno',full_name:'Bruno Costa',email:'bruno@opshub.example',whatsapp:'+5511999990102',role:'gestor',active:true},
+  {id:'demo-camila',full_name:'Camila Martins',email:'camila@opshub.example',whatsapp:'+5511999990103',role:'colaborador',active:true},
+  {id:'demo-diego',full_name:'Diego Ferreira',email:'diego@opshub.example',whatsapp:'+5511999990104',role:'gestor',active:true},
+  {id:'demo-elisa',full_name:'Elisa Souza',email:'elisa@opshub.example',whatsapp:'+5511999990105',role:'colaborador',active:true},
 ]
 const teams: Team[] = [
   {id:'comercial',name:'Comercial',color:'#e9a23b'},
@@ -332,7 +332,7 @@ const boards: Board[] = [
   {
     id: 'board-geral',
     name: 'Geral',
-    description: 'Quadro canônico completo com todas as 15 etapas operacionais da Somax.',
+    description: 'Quadro canônico completo com todas as 15 etapas operacionais do OPSHUB.',
     type: 'general',
     methodology: 'kanban',
     team_id: null,

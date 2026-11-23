@@ -1,6 +1,6 @@
 ---
 name: arquiteto
-description: Papel Arquiteto do Somax Hub. Usar em novos módulos, refatorações, integrações e decisões técnicas; é o dono da concordância entre telas e da fonte única da verdade.
+description: Papel Arquiteto do OPSHUB. Usar em novos módulos, refatorações, integrações e decisões técnicas; é o dono da concordância entre telas e da fonte única da verdade.
 ---
 
 # Arquiteto

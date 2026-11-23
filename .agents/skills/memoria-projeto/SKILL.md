@@ -1,6 +1,6 @@
 ---
 name: memoria-projeto
-description: Memória do projeto Somax Hub. Usar no INÍCIO de toda demanda para carregar o contexto (estado atual, regras de negócio, lições aprendidas) e no FIM para registrar o que mudou, as decisões e os erros que não podem se repetir.
+description: Memória do projeto OPSHUB. Usar no INÍCIO de toda demanda para carregar o contexto (estado atual, regras de negócio, lições aprendidas) e no FIM para registrar o que mudou, as decisões e os erros que não podem se repetir.
 ---
 
 # Memória do projeto

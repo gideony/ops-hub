@@ -11,7 +11,7 @@ import type {
 
 describe('Perfil do Cliente, Links de Cadastro e Validação em Quarentena', () => {
   const sampleClient: Client = {
-    id: 'client-somax-01',
+    id: 'client-opshub-01',
     name: 'Logística Horizonte',
     legal_name: 'Horizonte Transportes e Logística S.A.',
     contact_name: 'Juliana Paes',

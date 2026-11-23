@@ -347,7 +347,7 @@ export default function UserEditor({
                     value={email}
                     onChange={event => setEmail(event.target.value)}
                     required
-                    placeholder="usuario@somax.com.br"
+                    placeholder="usuario@opshub.com.br"
                   />
                 </label>
 

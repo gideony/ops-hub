@@ -80,7 +80,7 @@ export default function ChatPage({
   const [expandedArchives, setExpandedArchives] = useState<Record<string, boolean>>({})
   const [mutedChannels, setMutedChannels] = useState<Record<string, boolean>>(() => {
     try {
-      return JSON.parse(localStorage.getItem('somax_muted_channels') || '{}')
+      return JSON.parse(localStorage.getItem('opshub_muted_channels') || localStorage.getItem('somax_muted_channels') || '{}')
     } catch {
       return {}
     }
@@ -187,7 +187,9 @@ export default function ChatPage({
     setMutedChannels(prev => {
       const next = { ...prev, [channelId]: !prev[channelId] }
       try {
-        localStorage.setItem('somax_muted_channels', JSON.stringify(next))
+        const json = JSON.stringify(next)
+        localStorage.setItem('opshub_muted_channels', json)
+        localStorage.setItem('somax_muted_channels', json)
       } catch {}
       return next
     })

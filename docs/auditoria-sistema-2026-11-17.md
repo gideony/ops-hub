@@ -1,16 +1,16 @@
-# Relatório de Auditoria Completa do Sistema — Somax Hub
+# Relatório de Auditoria Completa do Sistema — OPSHUB
 
 > **Data da Auditoria:** 17 de novembro de 2026  
 > **Tipo de Auditoria:** Análise Estática, Arquitetural e de Integridade (Somente Leitura)  
 > **Status de Execução:** Concluída sem alteração de código, migrations, dados ou configurações  
-> **Versão do Sistema:** Somax Hub v0.1.0  
+> **Versão do Sistema:** OPSHUB v0.1.0  
 > **Documento:** `docs/auditoria-sistema-2026-11-17.md`  
 
 ---
 
 ## 1. Resumo Executivo
 
-O **Somax Hub** passou por uma auditoria completa e aprofundada de código, schema de banco de dados, políticas de segurança (RLS), Edge Functions, integridade referencial, concordância lógica e cobertura operacional. A análise foi conduzida sob o padrão dos papéis de engenharia definidos em `AGENTS.md` (Orquestrador, Analista de Requisitos, Arquiteto, Banco de Dados e RLS, Back-end, Front-end, QA / Testes, Segurança e Privacidade, Revisor de Código, DevOps e Documentação).
+O **OPSHUB** passou por uma auditoria completa e aprofundada de código, schema de banco de dados, políticas de segurança (RLS), Edge Functions, integridade referencial, concordância lógica e cobertura operacional. A análise foi conduzida sob o padrão dos papéis de engenharia definidos em `AGENTS.md` (Orquestrador, Analista de Requisitos, Arquiteto, Banco de Dados e RLS, Back-end, Front-end, QA / Testes, Segurança e Privacidade, Revisor de Código, DevOps e Documentação).
 
 ### Notas Gerais por Área
 
@@ -112,7 +112,7 @@ O **Somax Hub** passou por uma auditoria completa e aprofundada de código, sche
 - **Classificação:** Crítica | Status: Confirmado | Categoria: Autenticação / Autorização
 - **Onde:** `supabase/functions/manage-user/index.ts:47-70`
 - **Passo a Passo de Reprodução:**
-  1. Autenticar no Somax Hub como um `administrador` comum (que não seja o master).
+  1. Autenticar no OPSHUB como um `administrador` comum (que não seja o master).
   2. Obter o JWT de sessão.
   3. Fazer uma requisição HTTP `POST` para `/functions/v1/manage-user` contendo:
      ```json

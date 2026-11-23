@@ -185,7 +185,7 @@ export default function UserSettings({
       try {
         const NotifConstructor = (window as unknown as { Notification?: new (title: string, options?: NotificationOptions) => unknown }).Notification
         if (NotifConstructor && browserPermStatus === 'granted') {
-          new NotifConstructor('Somax Hub — Teste de Notificação', {
+          new NotifConstructor('OPSHUB — Teste de Notificação', {
             body: 'As notificações da sua conta estão configuradas e ativas!',
             icon: '/favicon.ico',
           })
@@ -327,7 +327,7 @@ export default function UserSettings({
               </label>
 
               <p className="account-hint">
-                O e-mail e as permissões de acesso ao sistema são gerenciados pela administração da Somax.
+                O e-mail e as permissões de acesso ao sistema são gerenciados pela administração do OPSHUB.
               </p>
 
               {profileError && (

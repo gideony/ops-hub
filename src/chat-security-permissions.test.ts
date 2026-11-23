@@ -6,11 +6,11 @@ describe('PASSO 6 & 7: Segurança, Privacidade e Permissões do Chat', () => {
   // Mock de estrutura de dados para testes locais com dados fictícios
   const mockAdminProfile: Profile = {
     id: 'user-admin',
-    full_name: 'Administrador Somax',
+    full_name: 'Administrador OPSHUB',
     role: 'gestor',
     is_master: true,
     active: true,
-    email: 'admin@somax.local'
+    email: 'admin@opshub.local'
   }
 
   const mockManagerProfile: Profile = {
@@ -19,7 +19,7 @@ describe('PASSO 6 & 7: Segurança, Privacidade e Permissões do Chat', () => {
     role: 'gestor',
     is_master: false,
     active: true,
-    email: 'gestor@somax.local'
+    email: 'gestor@opshub.local'
   }
 
   const mockMemberProfile: Profile = {
@@ -28,7 +28,7 @@ describe('PASSO 6 & 7: Segurança, Privacidade e Permissões do Chat', () => {
     role: 'colaborador',
     is_master: false,
     active: true,
-    email: 'user1@somax.local'
+    email: 'user1@opshub.local'
   }
 
   const members: Member[] = [
@@ -310,7 +310,7 @@ describe('PASSO 6 & 7: Segurança, Privacidade e Permissões do Chat', () => {
   describe('4. Proteção contra Injeção de Código (XSS)', () => {
     it('sanitiza texto e tokens sem permitir injeção de HTML/Script', () => {
       const maliciousBody = '<script>alert("XSS")</script><img src="x" onerror="evil()">'
-      // No React nativo do Somax Hub, o split gera strings puras renderizadas como nós de texto:
+      // No React nativo do OPSHUB, o split gera strings puras renderizadas como nós de texto:
       const parts = maliciousBody.split(/(@[\p{L}\p{N}_]+)/gu)
       expect(parts.every(p => typeof p === 'string')).toBe(true)
       // Nenhuma marcação HTML é avaliada com dangerouslySetInnerHTML

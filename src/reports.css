@@ -114,7 +114,7 @@
 .text-warning{color:var(--chip-warning-text)!important}
 
 /* ==========================================================================
-   Somax Analytics V3: Presets de Período, Placar Executivo e Navegação por Abas
+   OPSHUB Analytics V3: Presets de Período, Placar Executivo e Navegação por Abas
    ========================================================================== */
 
 /* Barra de Presets Rápidos de Período */
@@ -258,7 +258,7 @@
 .risk-meta{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text-secondary)}
 .risk-meta strong{color:var(--text-muted);font-weight:600}
 
-/* Responsividade Somax Analytics V3 */
+/* Responsividade OPSHUB Analytics V3 */
 @media(max-width:1050px){
   .reports-executive-bar{grid-template-columns:1fr}
   .punctuality-breakdown-grid{grid-template-columns:repeat(2, 1fr)}

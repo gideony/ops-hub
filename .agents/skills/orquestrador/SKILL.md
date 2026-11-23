@@ -1,6 +1,6 @@
 ---
 name: orquestrador
-description: Papel Orquestrador do Somax Hub. Usar ao receber qualquer demanda, bug ou refatoração, para decompor em passos, escolher os agentes, acompanhar a entrega e validar a Definição de Pronto.
+description: Papel Orquestrador do OPSHUB. Usar ao receber qualquer demanda, bug ou refatoração, para decompor em passos, escolher os agentes, acompanhar a entrega e validar a Definição de Pronto.
 ---
 
 # Orquestrador

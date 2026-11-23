@@ -1,6 +1,6 @@
 ---
 name: front-end
-description: Papel Front-end do Somax Hub. Usar ao criar ou alterar telas, componentes, modais, cards e estados de interface em React 19 + TypeScript + Tailwind v4.
+description: Papel Front-end do OPSHUB. Usar ao criar ou alterar telas, componentes, modais, cards e estados de interface em React 19 + TypeScript + Tailwind v4.
 ---
 
 # Front-end

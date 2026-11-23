@@ -109,7 +109,7 @@ describe('Componente UserSettings.tsx — Configurações e Preferências', () =
   const mockProfile: Profile = {
     id: 'user-test-123',
     full_name: 'Carlos Oliveira',
-    email: 'carlos@somax.com.br',
+    email: 'carlos@opshub.com.br',
     whatsapp: '+5585988887777',
     role: 'gestor',
     active: true,
@@ -124,7 +124,7 @@ describe('Componente UserSettings.tsx — Configurações e Preferências', () =
     const html = renderToStaticMarkup(
       <UserSettings
         profile={mockProfile}
-        email="carlos@somax.com.br"
+        email="carlos@opshub.com.br"
         teams={mockTeams}
         preview={true}
         theme="light"
@@ -136,7 +136,7 @@ describe('Componente UserSettings.tsx — Configurações e Preferências', () =
 
     expect(html).toContain('Configurações e Preferências')
     expect(html).toContain('Carlos Oliveira')
-    expect(html).toContain('carlos@somax.com.br')
+    expect(html).toContain('carlos@opshub.com.br')
     expect(html).toContain('Gestor')
     expect(html).toContain('Comercial')
     expect(html).toContain('Suporte')
@@ -155,7 +155,7 @@ describe('Componente UserSettings.tsx — Configurações e Preferências', () =
     const html = renderToStaticMarkup(
       <UserSettings
         profile={masterProfile}
-        email="admin@somax.com.br"
+        email="admin@opshub.com.br"
         teams={mockTeams}
         preview={false}
         theme="dark"

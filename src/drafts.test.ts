@@ -76,13 +76,13 @@ describe('Módulo de Rascunhos Seguros (drafts.ts)', () => {
 
     it('no formulário client_new, exclui estritamente a aba e os dados de integração', () => {
       const clientFormData = {
-        name: 'Somax Tech Ltda',
-        legal: 'Somax Tecnologia',
+        name: 'OPSHUB Tech Ltda',
+        legal: 'OPSHUB Tecnologia',
         contact: 'Carlos Oliveira',
-        email: 'carlos@somax.com',
+        email: 'carlos@opshub.com',
         phone: '(11) 98888-7777',
         financialContact: 'Ana Financeiro',
-        financialEmail: 'financeiro@somax.com',
+        financialEmail: 'financeiro@opshub.com',
         financialWhatsapp: '(11) 97777-6666',
         financialDueDate: '2026-12-10',
         financial: 'Faturamento direto via boleto',
@@ -97,9 +97,9 @@ describe('Módulo de Rascunhos Seguros (drafts.ts)', () => {
       const stored = getDraft<typeof clientFormData>(userIdA, formId)
 
       expect(stored).not.toBeNull()
-      expect(stored?.name).toBe('Somax Tech Ltda')
+      expect(stored?.name).toBe('OPSHUB Tech Ltda')
       expect(stored?.financialContact).toBe('Ana Financeiro')
-      expect(stored?.financialEmail).toBe('financeiro@somax.com')
+      expect(stored?.financialEmail).toBe('financeiro@opshub.com')
       expect(stored?.financialDueDate).toBe('2026-12-10')
       expect(stored?.financial).toBe('Faturamento direto via boleto')
       expect(stored?.links).toHaveLength(1)

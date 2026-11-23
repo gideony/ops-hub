@@ -832,7 +832,7 @@ export function ReviewRegistrationModal({
             <div className="quarantine-banner-text">
               <strong>Quarentena de Segurança</strong>
               <span>
-                Estes dados foram preenchidos pelo cliente externo via link público. Revise ou complemente os campos antes de oficializar o cadastro na base oficial do Somax Hub.
+                Estes dados foram preenchidos pelo cliente externo via link público. Revise ou complemente os campos antes de oficializar o cadastro na base oficial do OPSHUB.
               </span>
             </div>
           </div>

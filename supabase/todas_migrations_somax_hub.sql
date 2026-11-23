@@ -1,6 +1,6 @@
 --
 -- ==============================================================================
--- SCRIPT COMPLETO MESTRE DE TODAS AS MIGRATIONS (SOMAX HUB)
+-- SCRIPT COMPLETO MESTRE DE TODAS AS MIGRATIONS (OPSHUB)
 -- ==============================================================================
 -- Este script contém a totalidade das 34 migrations sequenciais do sistema,
 -- desde a inicialização completa de tabelas e RLS até a última funcionalidade.

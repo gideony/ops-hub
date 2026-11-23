@@ -1,9 +1,9 @@
-# Equipe de Agentes de Desenvolvimento — Somax Hub
+# Equipe de Agentes de Desenvolvimento — OPSHUB
 
-Papéis de desenvolvimento para construir, manter e evoluir o Somax Hub (não fazem parte do produto em execução). O detalhe de cada papel está nas skills em `.agents/skills/<nome>/SKILL.md`; o agente lê a skill do papel quando atuar nele.
+Papéis de desenvolvimento para construir, manter e evoluir o OPSHUB (não fazem parte do produto em execução). O detalhe de cada papel está nas skills em `.agents/skills/<nome>/SKILL.md`; o agente lê a skill do papel quando atuar nele.
 
 ## 1. Contexto
-- **Objetivo:** gestão de tarefas (Kanban e Scrum), fluxos, clientes e comunicação interna em tempo real por equipes, com controle de acesso por equipe e governança de dados de clientes. A Somax desenvolve aplicativos para provedores de internet.
+- **Objetivo:** gestão de tarefas (Kanban e Scrum), fluxos, clientes e comunicação interna em tempo real por equipes, com controle de acesso por equipe e governança de dados de clientes. O OPSHUB desenvolve aplicativos para provedores de internet.
 - **Stack:** React 19 + TypeScript + Vite + Tailwind CSS v4 + Lucide Icons; Supabase (PostgreSQL 15+, Auth, Realtime, Storage, Edge Functions em Deno); Vitest.
 - **Idioma:** responder sempre em português do Brasil.
 

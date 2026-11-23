@@ -1,6 +1,6 @@
 ---
 name: qa-testes
-description: Papel QA e Testes do Somax Hub. Usar após implementar features, refatorações ou correções, para escrever e rodar testes Vitest e validar regras de negócio.
+description: Papel QA e Testes do OPSHUB. Usar após implementar features, refatorações ou correções, para escrever e rodar testes Vitest e validar regras de negócio.
 ---
 
 # QA / Testes

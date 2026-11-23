@@ -5,7 +5,7 @@ import { demoData } from './demo'
 import { taskBuckets } from './lib'
 import type { Data, DashboardFilter } from './App'
 
-describe('QA: Dashboard Aprimorado do Somax Hub', () => {
+describe('QA: Dashboard Aprimorado do OPSHUB', () => {
   const adminProfile = demoData.profiles[0] // Administrador Master
   const dummyOpenMetric = (_: Exclude<DashboardFilter, null>) => {}
   const dummyOnTask = () => {}

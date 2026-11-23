@@ -362,7 +362,7 @@ describe('QA / Regras Mandatórias da Demanda: Paridade, Segurança e Interaçã
     const userProfile: Profile = {
       id: 'colab-equipe-1',
       full_name: 'Colaborador Equipe 1',
-      email: 'colab1@somax.example',
+      email: 'colab1@opshub.example',
       whatsapp: null,
       role: 'colaborador',
       active: true,

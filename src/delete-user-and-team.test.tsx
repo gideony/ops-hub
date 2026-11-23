@@ -98,7 +98,7 @@ describe('Exclusão de Usuários e Equipes (Segurança e Integridade)', () => {
     const otherAdmin: Profile = {
       id: 'admin-2-id',
       full_name: 'Outro Admin',
-      email: 'outro@somax.com',
+      email: 'outro@opshub.com',
       whatsapp: '+5585988887777',
       role: 'administrador',
       active: true,

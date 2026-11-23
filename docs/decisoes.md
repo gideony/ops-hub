@@ -1,6 +1,6 @@
-# Registro de Decisões de Arquitetura (ADR) — Somax Hub
+# Registro de Decisões de Arquitetura (ADR) — OPSHUB
 
-Este documento registra as decisões estruturais, trade-offs e padrões técnicos adotados na evolução do Somax Hub, conforme as diretrizes do papel de **Arquiteto** em `AGENTS.md`.
+Este documento registra as decisões estruturais, trade-offs e padrões técnicos adotados na evolução do OPSHUB, conforme as diretrizes do papel de **Arquiteto** em `AGENTS.md`.
 
 ---
 
@@ -102,7 +102,7 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
 - **Data:** 2026-11-10
 - **Status:** Aprovado
 - **Contexto:**
-  A Fase 1 foca exclusivamente no fluxo Kanban contínuo e na fidelidade ao design de referência do Somax Hub (sem introduzir Scrum nesta etapa). Era necessário estruturar a navegação por abas com ordem mandatória, transformar "Meus quadros" de pop-up para tela própria e padronizar paleta e dimensões de colunas e cards.
+  A Fase 1 foca exclusivamente no fluxo Kanban contínuo e na fidelidade ao design de referência do OPSHUB (sem introduzir Scrum nesta etapa). Era necessário estruturar a navegação por abas com ordem mandatória, transformar "Meus quadros" de pop-up para tela própria e padronizar paleta e dimensões de colunas e cards.
 - **Decisão:**
   1. **Linha de Abas Superior:**
      Ordem estrita: `[Geral]` -> `[Meus quadros]` -> `[quadros do usuário, ex: Comercial, Suporte]` -> `[+ Novo quadro]`.
@@ -272,12 +272,12 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
      - Função canônica `buildBoardSummaryCsv` com delimitador `;`, prefixo `\uFEFF` (BOM UTF-8 para Excel) e proteção contra injeção de fórmulas CSV via `reportCsvCell`.
 ---
 
-## ADR-011: Somax Analytics V3 — Evolução da Aba de Relatórios por Dores Operacionais (Pontualidade, Gargalos e Capacidade da Equipe)
+## ADR-011: OPSHUB Analytics V3 — Evolução da Aba de Relatórios por Dores Operacionais (Pontualidade, Gargalos e Capacidade da Equipe)
 
 - **Data:** 2026-11-12
 - **Status:** Aprovado
 - **Contexto:**
-  A aba de relatórios original exibia filtros, métricas simples e uma lista extensa de tarefas, mas não respondia diretamente às principais dores da gestão operacional da Somax:
+  A aba de relatórios original exibia filtros, métricas simples e uma lista extensa de tarefas, mas não respondia diretamente às principais dores da gestão operacional da OPSHUB:
   1. **Dor 1 (Pontualidade & Prazos):** Falta de visibilidade clara da taxa de entrega no prazo (% On-Time SLA), tarefas concluídas com atraso vs. no prazo e ausência de um radar preventivo de tarefas em risco iminente de vencimento;
   2. **Dor 2 (Gargalos na Esteira):** Falta de identificação do tempo médio de permanência das tarefas por etapa e ausência de alerta de tarefas estagnadas (> 5 dias sem movimentação na mesma etapa);
   3. **Dor 4 (Equipe & Capacidade):** Carga invisível de trabalho por colaborador, dificultando detectar sobrecargas críticas (≥ 8 tarefas ativas) antes que gerem atrasos ou esgotamento.
@@ -419,7 +419,7 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
 - **Data:** 2026-11-15
 - **Status:** Aprovado
 - **Contexto:**
-  O Dashboard inicial do Somax Hub apresentava métricas gerais estáticas do sistema. Com o advento de múltiplos quadros (Geral, visões setoriais, quadros personalizados e Scrum), os gestores e operadores necessitavam de visibilidade operacional dinâmica sem complexidades desnecessárias:
+  O Dashboard inicial do OPSHUB apresentava métricas gerais estáticas do sistema. Com o advento de múltiplos quadros (Geral, visões setoriais, quadros personalizados e Scrum), os gestores e operadores necessitavam de visibilidade operacional dinâmica sem complexidades desnecessárias:
   1. Capacidade de alternar o escopo do Dashboard (todos os quadros, quadro Geral canônico ou um quadro setorial específico).
   2. Alerta imediato e acionável de limites WIP excedidos para evitar acúmulo e estrangulamento nas etapas de trabalho.
   3. Acompanhamento direto da Sprint ativa em quadros com metodologia Scrum.
@@ -734,7 +734,7 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
      - O chip com o nome do quadro não é exibido quando a tarefa já se encontra no bloco do seu próprio quadro, aparecendo apenas no Geral canônico misto.
      - Faixas de encaminhamento no rodapé padronizadas em linha única contínua sem quebras de texto.
 - **Consequências:**
-  - Interface moderna, limpa, ergonômica e de alto impacto visual para as equipes de atendimento e desenvolvimento da Somax.
+  - Interface moderna, limpa, ergonômica e de alto impacto visual para as equipes de atendimento e desenvolvimento da OPSHUB.
   - Regra 9 (fonte única da verdade, concordância de contadores e métricas) estritamente preservada.
   - Modo demonstração (`src/demo.ts`) 100% funcional sem Supabase e sem rede.
   - Cobertura de testes automatizados expandida para **242 testes** aprovados com 100% de sucesso no Vitest (`general-views.test.ts` e `theme-contrast.test.ts`).
@@ -747,7 +747,7 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
 - **Data:** 2026-11-19
 - **Status:** Aprovado
 - **Contexto:**
-  Na arquitetura do Somax Hub, cada tarefa operacional pertence a um quadro específico (Comercial, Implantação, Suporte, Dev Scrum, etc.). A aba "Geral", por agregar todos os quadros e fluxos corporativos em uma visão macro panorâmica (modos Lateral e Consolidado), permitia operações diretas de drag-and-drop e exclusão de tarefas. Essa duplicidade operacional gerava confusão cognitiva para os usuários ao arrastar cards entre colunas em blocos de quadros diferentes, além de riscos de criação de tarefas sem quadro associado (`board_id = null` ou `board-geral`).
+  Na arquitetura do OPSHUB, cada tarefa operacional pertence a um quadro específico (Comercial, Implantação, Suporte, Dev Scrum, etc.). A aba "Geral", por agregar todos os quadros e fluxos corporativos em uma visão macro panorâmica (modos Lateral e Consolidado), permitia operações diretas de drag-and-drop e exclusão de tarefas. Essa duplicidade operacional gerava confusão cognitiva para os usuários ao arrastar cards entre colunas em blocos de quadros diferentes, além de riscos de criação de tarefas sem quadro associado (`board_id = null` ou `board-geral`).
 - **Decisões Técnicas:**
   1. **Visão Pura de Agregação e Somente Leitura (`src/GeneralViews.tsx`, `src/general-views.css`):**
      - A aba Geral passa a operar exclusivamente como um hub executivo de monitoramento e agregação de dados entre quadros.
@@ -767,7 +767,7 @@ Este documento registra as decisões estruturais, trade-offs e padrões técnico
      - A seleção do quadro de destino sincroniza dinamicamente as etapas do quadro (`boardStages`), a equipe responsável (`teamId`) e, no caso de quadros Scrum (`methodology === 'scrum'`), expõe a seleção de sprint ativa/planejada e estimativa de Story Points.
 - **Consequências:**
   - Eliminação definitiva de ambiguidades operacionais e arrastos acidentais de cards entre quadros na visão macro.
-  - Alinhamento pleno com a doutrina de negócio da Somax e preservação estrita da Regra 9 (fonte única da verdade e concordância de contadores).
+  - Alinhamento pleno com a doutrina de negócio da OPSHUB e preservação estrita da Regra 9 (fonte única da verdade e concordância de contadores).
   - Modo demonstração (`src/demo.ts`) 100% preservado.
   - Suíte de testes automatizados expandida para **248 testes** aprovados com 100% de sucesso no Vitest (inclusão de `src/general-readonly.test.tsx`).
   - Compilação de produção limpa (`tsc -b && vite build`) concluída com código 0.
@@ -906,7 +906,7 @@ O chat da equipe necessitava de evolução para suportar gestão completa de can
      - `saveDemoBoardTemplate` e `deleteBoardTemplate` gerenciam o estado em memória no modo Demo com notificações toast via `flash()`.
      - Operações Supabase efetuam `insert`, `update` e `delete` diretos na tabela `public.board_templates`, protegidos pelas políticas de RLS `board_templates_write`.
 - **Consequências:**
-  - Autonomia operacional plena para a Somax criar e customizar esteiras de trabalho reutilizáveis para novos fluxos.
+  - Autonomia operacional plena para a OPSHUB criar e customizar esteiras de trabalho reutilizáveis para novos fluxos.
   - Testes automatizados criados em `src/board-templates.test.tsx` cobrindo adição, edição, exclusão e integração com o assistente de criação.
   - Suíte completa do Vitest expandida para **27 arquivos de teste e 296 testes aprovados (100% verde)**.
   - Compilação de produção (`npm run build`) concluída com código 0 e sem avisos de tipagem.
@@ -969,7 +969,7 @@ O chat da equipe necessitava de evolução para suportar gestão completa de can
      - Criação de componentes visuais: `.pref-segment-group`, `.pref-segment-btn`, `.pref-switch-wrap`, `.pref-slider`, `.btn-test-sound`.
      - Suporte nativo ao tema escuro (`:root[data-theme='dark']`) aderente à paleta semântica do sistema.
 - **Consequências:**
-  - Autonomia e conforto ergonômico para os colaboradores da Somax configurarem seu fluxo diário de trabalho.
+  - Autonomia e conforto ergonômico para os colaboradores da OPSHUB configurarem seu fluxo diário de trabalho.
   - Testes automatizados criados em `src/user-settings.test.tsx` com 100% de aprovação.
   - Suíte de testes expandida para **29 arquivos e 312 testes Vitest aprovados (100% verde)**.
   - Compilação de produção (`npm run build`) concluída com código 0.
@@ -1045,10 +1045,10 @@ O chat da equipe necessitava de evolução para suportar gestão completa de can
   Na página de Tarefas, a barra de abas de quadros (`Geral`, `Meus quadros`, `Comercial`, `Implantação`, `suporte n1`, `backlog`, `Atualização sistema`, `+ Novo quadro`) apresentava inconsistências visuais no modo escuro:
   1. *Fundo da barra desconectado:* Utilizava a cor de superfície dos cards, aparentando ser uma faixa de outra cor cortando a página.
   2. *Poluição Visual por Botões de Acessibilidade:* Os botões de reordenação por teclado (`←` e `→`) eram renderizados permanentemente com bordas e fundos cinzas entre todas as abas, fragmentando a leitura.
-  3. *Descompasso Cromático da Aba Ativa:* O sublinhado ativo utilizava um tom roxo escuro enquanto o texto e as marcas adotavam o azul Somax, com ausência de sobreposição precisa sobre a borda inferior da barra.
+  3. *Descompasso Cromático da Aba Ativa:* O sublinhado ativo utilizava um tom roxo escuro enquanto o texto e as marcas adotavam o azul OPSHUB, com ausência de sobreposição precisa sobre a borda inferior da barra.
   4. *Alinhamento do Botão "+ Novo quadro":* Apresentava margens desbalanceadas (`margin-bottom: 4px`), desalinhando-se da linha base das abas operacionais.
   5. *Barra de Rolagem Bruta no Windows:* Em telas onde as 8 abas excediam a largura útil, o navegador renderizava a barra de rolagem horizontal nativa do sistema em tom claro berrante.
-  6. *Visibilidade dos Indicadores de Cores (Dots):* Os círculos coloridos de quadros com tons escuros (ex: Azul Somax e Teal) perdiam nitidez contra a superfície escura.
+  6. *Visibilidade dos Indicadores de Cores (Dots):* Os círculos coloridos de quadros com tons escuros (ex: Azul OPSHUB e Teal) perdiam nitidez contra a superfície escura.
 - **Decisões Técnicas (Estritamente baseadas em Design Tokens `var(--...)`):**
   1. **Fundo Unificado com a Página (`var(--bg-page)`):**
      - O fundo de `.board-tabs-bar` foi definido com `var(--bg-page)` (com `border-bottom: 1px solid var(--border-main)` e sem sombras duras), eliminando a impressão de faixa desconectada tanto no tema claro quanto no escuro.

@@ -1,4 +1,4 @@
-# Memória do projeto — Somax Hub
+# Memória do projeto — OPSHUB
 
 Leia este índice no início de cada demanda e abra só o que for relevante. Última atualização: 2026-11-18.
 
