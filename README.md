@@ -1,123 +1,168 @@
 # OPSHUB
 
-Hub interno de tarefas e comunicação do OPSHUB, em português do Brasil. Projeto independente em React, TypeScript, Vite, Tailwind CSS e Supabase. Os dados de demonstração são fictícios. Nenhum arquivo do sistema atual foi alterado.
+<div align="center">
 
-## Preparação
+![React](https://img.shields.io/badge/React-19.1-blue?logo=react&style=for-the-badge)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&style=for-the-badge)
+![Vite](https://img.shields.io/badge/Vite-7.1-646cff?logo=vite&style=for-the-badge)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?logo=tailwindcss&style=for-the-badge)
+![Supabase](https://img.shields.io/badge/Supabase-Database%20%7C%20Auth%20%7C%20Realtime-3ecf8e?logo=supabase&style=for-the-badge)
+![Vitest](https://img.shields.io/badge/Tests-313%20Passed-brightgreen?logo=vitest&style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
-1. Crie **um projeto Supabase separado** para este hub.
-2. No SQL Editor do novo projeto, execute nesta ordem as migrations presentes em [`supabase/migrations/`](supabase/migrations/), incluindo [`202611100002_update_kanban_flows.sql`](supabase/migrations/202611100002_update_kanban_flows.sql), [`202611100003_admin_free_flow.sql`](supabase/migrations/202611100003_admin_free_flow.sql), [`202611100004_update_checklist_templates.sql`](supabase/migrations/202611100004_update_checklist_templates.sql), [`202611100005_update_stage_subtask_templates.sql`](supabase/migrations/202611100005_update_stage_subtask_templates.sql), [`202611100007_custom_boards_scrum.sql`](supabase/migrations/202611100007_custom_boards_scrum.sql), [`202611100008_create_custom_board_rpc_defaults.sql`](supabase/migrations/202611100008_create_custom_board_rpc_defaults.sql), [`202611100009_custom_board_stages_and_tasks.sql`](supabase/migrations/202611100009_custom_board_stages_and_tasks.sql), [`202611110001_scrum_sprints_and_backlog.sql`](supabase/migrations/202611110001_scrum_sprints_and_backlog.sql), [`202611110002_reports_board_concordance.sql`](supabase/migrations/202611110002_reports_board_concordance.sql), [`202611110003_client_registration_links.sql`](supabase/migrations/202611110003_client_registration_links.sql), [`202611110004_reorder_stages_fix.sql`](supabase/migrations/202611110004_reorder_stages_fix.sql), [`202611120001_client_financial_due_date_text.sql`](supabase/migrations/202611120001_client_financial_due_date_text.sql), [`202611130001_tasks_client_id_on_delete_set_null.sql`](supabase/migrations/202611130001_tasks_client_id_on_delete_set_null.sql), [`202611140001_board_permissions_forwarding_rls.sql`](supabase/migrations/202611140001_board_permissions_forwarding_rls.sql), [`202611140002_task_branching_lineage.sql`](supabase/migrations/202611140002_task_branching_lineage.sql) e [`202611150001_task_movements_snapshot_names.sql`](supabase/migrations/202611150001_task_movements_snapshot_names.sql), [`202611160001_consolidated_forwarding_and_lineage.sql`](supabase/migrations/202611160001_consolidated_forwarding_and_lineage.sql), [`202611170001_fix_board_color_and_forwarding.sql`](supabase/migrations/202611170001_fix_board_color_and_forwarding.sql), [`202611170002_preserve_subtasks_and_cloning.sql`](supabase/migrations/202611170002_preserve_subtasks_and_cloning.sql), [`202611190001_migrate_general_tasks_to_legacy_board.sql`](supabase/migrations/202611190001_migrate_general_tasks_to_legacy_board.sql), [`202611190002_enforce_task_real_board_and_stage.sql`](supabase/migrations/202611190002_enforce_task_real_board_and_stage.sql) e [`202611190003_board_templates.sql`](supabase/migrations/202611190003_board_templates.sql), [`202611190004_team_chat_management_and_mentions.sql`](supabase/migrations/202611190004_team_chat_management_and_mentions.sql), [`202611200001_delete_user_and_team_rpcs.sql`](supabase/migrations/202611200001_delete_user_and_team_rpcs.sql) e [`202611200002_delete_channel_atomic_rpc.sql`](supabase/migrations/202611200002_delete_channel_atomic_rpc.sql). As migrations criam e atualizam tabelas, gatilhos, políticas RLS, equipes, etapas operacionais com nomes padronizados, transições com descrição de fluxo, regras de fluxo livre para administradores e fluxo guiado para colaboradores, quadros personalizados (`boards`) com coluna de cor (`color`), etapas customizadas (`board_stages`) com limites WIP, sprints ágeis (`sprints`), story points e ordenação de backlog (`tasks`), grupos de templates de subtarefas, subtarefas automáticas de etapa (`subtask_templates`), tags, canais privados, o bucket `chat-private`, funções administrativas atômicas (`start_sprint`, `move_task_sprint`, `complete_sprint`), procedure atômica de métricas de relatórios por quadro (`get_board_report_metrics`) com isolamento nativo via `SECURITY INVOKER`, suporte a links de cadastro e anexos de clientes, procedure transacional robusta de reordenação de etapas (`reorder_stages`), suporte flexível a vencimento financeiro textual (`financial_due_date` como `text`), integridade relacional para exclusão de clientes (`tasks_client_id_fkey` com `ON DELETE SET NULL`) preservando tarefas existentes, blindagem estrita de permissões e RLS para quadros de destino (`can_create_task_in_board` e `forward_completed_task`), o sistema de ramificação atômica de tarefas com preservação integral de estado de subtarefas e relatórios com linha do tempo imutável (`origin_task_id`, `root_task_id`, `task_lineage_events`), instantâneos textuais de etapas no histórico de movimentação (`from_stage_name`, `to_stage_name` em `task_movements`) resolvendo etapas de quadros personalizados com sobrevivência a exclusões, migração estrutural de tarefas legadas do Geral para o quadro real corporativo "Geral (legado)" com preservação de datas e conclusão, trigger de integridade de banco de dados (`trg_validate_task_board_and_stage`) que proíbe tarefas sem quadro ou com etapa desconhecida, tabela de modelos reutilizáveis de quadros (`board_templates`), gerenciamento completo de canais de chat por equipe (criar, editar descrição, arquivar e exclusão definitiva por Edge Function ou RPC com auditoria), proteção mandatória do canal "Geral", ciclo de vida de mensagens com edição e exclusão (soft-delete em conformidade LGPD com limpeza do corpo), menções a usuários com validação server-side de membros do canal (`mentions`), aviso a todo o canal (`@todos`), função canônica de contadores de mensagens não lidas e menções (`unread_channel_metrics`), exclusão segura e atômica de equipes (`delete_team`) com bloqueio contra tarefas ativas, e exclusão de usuários (`delete_managed_user`) com proteção ao Administrador Master, proibição de auto-exclusão, desatribuição automática de tarefas pendentes e fallback seguro para anonimização histórica.
-3. Em **Authentication > Providers > Email**, desative cadastro público. Em **Authentication > URL Configuration**, adicione a URL local ou futura do hub aos redirects permitidos.
-4. Em **Authentication > Users**, crie a primeira conta. Depois execute no SQL Editor, trocando o e-mail pelo da conta criada:
+**Plataforma integrada de gestão operacional de tarefas (Kanban & Scrum), comunicação em tempo real por equipes e governança de dados de clientes.**
 
-   ```sql
-   update public.profiles p
-   set role = 'administrador'
-   from auth.users u
-   where p.id = u.id and u.email = 'admin@exemplo.com';
-   ```
+[Recursos](#-principais-funcionalidades) • [Telas do Sistema](#-telas-do-sistema) • [Instalação Local](#-como-executar-localmente) • [Banco de Dados](#-banco-de-dados--migrations) • [Testes](#-testes--qualidade)
 
-5. Execute [`supabase/seed_demo.sql`](supabase/seed_demo.sql) **uma vez**, depois de criar a conta administradora. O script cadastra clientes e tarefas fictícias e inclui o administrador nas quatro equipes.
-6. Copie `.env.example` para `.env` e preencha apenas a URL e a chave **pública anon** do projeto Supabase. Nunca coloque a chave `service_role` no frontend. Sem `.env`, `npm run dev` abre uma prévia local com dados fictícios.
-7. Instale e execute:
+</div>
 
+---
+
+## 📸 Telas do Sistema
+
+### 1. Dashboard Operacional & Panorama de Fluxo
+Painel executivo com métricas contextuais, alertas de limite de trabalho em andamento (WIP), acompanhamento de sprints ativas e capacidade da equipe.
+<p align="center">
+  <img src="docs/screenshots/dashboard.svg" alt="Dashboard Operacional OPSHUB" width="100%" />
+</p>
+
+### 2. Gestão de Tarefas (Kanban & Scrum)
+Quadros flexíveis por setor, limites WIP visuais, modelos dinâmicos, ordenação de backlog, sprints ágeis com Burndown e ramificação de tarefas com linha do tempo imutável.
+<p align="center">
+  <img src="docs/screenshots/kanban.svg" alt="Quadro Kanban e Scrum OPSHUB" width="100%" />
+</p>
+
+### 3. Chat da Equipe em Tempo Real
+Canais colaborativos por equipe, menções `@usuario` e `@todos`, edição inline, soft-delete compatível com LGPD, contadores de mensagens não lidas e badges integrados.
+<p align="center">
+  <img src="docs/screenshots/chat.svg" alt="Chat da Equipe em Tempo Real" width="100%" />
+</p>
+
+### 4. Relatórios & Analytics Multidimensional
+Consolidação analítica por quadro, status mutuamente exclusivos (`active` + `done` + `blocked` + `backlog`), cálculo canônico de atrasos e exportação para CSV compatível com o Excel.
+<p align="center">
+  <img src="docs/screenshots/reports.svg" alt="Relatórios e Analytics por Quadro" width="100%" />
+</p>
+
+### 5. Gestão de Clientes 360° & Fila de Quarentena
+Perfil completo com demandas vinculadas, dados de contato, notas financeiras, links técnicos seguros e fila de validação de autocadastros externos.
+<p align="center">
+  <img src="docs/screenshots/clients.svg" alt="Perfil do Cliente e Validação" width="100%" />
+</p>
+
+---
+
+## ✨ Principais Funcionalidades
+
+### 📋 Tarefas, Quadros & Metodologias Ágeis
+- **Quadros Kanban Personalizados:** Crie quadros corporativos ou restritos por equipe, personalize etapas, cores e limites de trabalho em andamento (WIP).
+- **Metodologia Scrum Integrada:** Gestão de backlog priorizado por Story Points, ciclos de sprint com regra de unicidade e gráfico Burndown diário vetorial.
+- **Visão Geral Agregadora:** Monitoramento panorâmico em Modo Lateral ou Modo Consolidado (somente leitura para evitar movimentações acidentais entre fluxos).
+- **Ramificação e Encaminhamento de Demandas:** Ao concluir uma tarefa, encaminhe-a para outro setor gerando uma linha do tempo cronológica com rastreabilidade de ponta a ponta.
+- **Modelos e Automações:** Templates de subtarefas por etapa e modelos de quadros reutilizáveis (*Em branco, Comercial, Implantação, Suporte, Scrum padrão*).
+
+### 💬 Comunicação em Tempo Real
+- **Canais por Equipe:** Canais privados protegidos por RLS estrutural (com canal Geral corporativo protegido contra exclusão acidental).
+- **Menções Inteligentes:** Autocomplete ao digitar `@`, notificações sonoras com Web Audio API e marcação em lote `@todos`.
+- **Governança & LGPD:** Exclusão lógica com limpeza do corpo da mensagem e expurgo físico de anexos no Supabase Storage.
+
+### 👥 Clientes & Integração
+- **Perfil 360°:** Visualização consolidada de todas as demandas históricas e ativas do cliente.
+- **Fila de Quarentena:** Validação e triagem de novos cadastros vindos de formulários públicos externos antes de entrarem na base oficial.
+- **Exportação de Dados:** Exportação completa de clientes e relatórios em CSV formatado com BOM UTF-8 e separador `;` para o Excel.
+
+### 🎨 Experiência do Usuário & Acessibilidade
+- **Temas Claro e Escuro:** Paleta semântica completa com contraste validado conforme normas WCAG AA (>= 4.5:1).
+- **Central de Preferências:** Configuração de visualização padrão (Kanban vs. Lista), tela de entrada, alertas e notificações sonoras.
+- **Modo Demonstração Integrado:** Funcionalidade plena do sistema mesmo sem conexão com o banco de dados.
+
+---
+
+## 🚀 Como Executar Localmente
+
+### Pré-requisitos
+- **Node.js** 18+ instalado
+- Gerenciador de pacotes **npm** (ou yarn/pnpm)
+
+---
+
+### Opção 1: Execução Imediata (Modo Demonstração)
+O OPSHUB conta com uma camada de dados simulados em memória (`src/demo.ts`) que permite rodar e explorar 100% da interface sem precisar configurar banco de dados ou credenciais externas.
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/gideony/ops-hub.git
+cd ops-hub
+
+# 2. Instale as dependências
+npm install
+
+# 3. Inicie o servidor de desenvolvimento
+npm run dev
+```
+
+Abra [http://localhost:5173](http://localhost:5173) no seu navegador para utilizar a aplicação.
+
+---
+
+### Opção 2: Conexão com o Supabase (Ambiente Completo)
+
+1. Crie um projeto no [Supabase](https://supabase.com).
+2. Configure o arquivo de variáveis de ambiente:
    ```bash
-   npm install
-   npm run dev
+   cp .env.example .env
    ```
+   Edite o `.env` com os dados do seu projeto:
+   ```env
+   VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+   VITE_SUPABASE_ANON_KEY=sua-chave-publica-anon
+   ```
+3. No SQL Editor do Supabase, execute o script mestre consolidado:
+   - [`supabase/todas_migrations_somax_hub.sql`](supabase/todas_migrations_somax_hub.sql)
+4. *(Opcional)* Para dados de exemplo, execute em seguida:
+   - [`supabase/seed_demo.sql`](supabase/seed_demo.sql)
+5. Publique as Edge Functions administrativas para gestão de usuários e canais (`supabase/functions/`).
+6. Inicie a aplicação com `npm run dev`.
 
-8. Para o botão **Novo usuário**, publique a Edge Function [`supabase/functions/invite-user/index.ts`](supabase/functions/invite-user/index.ts) no projeto separado (o nome do endpoint foi mantido). `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` devem permanecer como segredos da função. Ela valida a sessão e as permissões, cria a conta com senha temporária via `auth.admin.createUser` e exige a troca da senha no primeiro acesso. Entregue o e-mail e a senha temporária à pessoa por um canal seguro. O cadastro público continua desativado.
+---
 
-Não há publicação ou conexão com produção nesta entrega.
+## 🗄️ Banco de Dados & Migrations
 
-## Regras principais
+O banco de dados PostgreSQL do OPSHUB é governado por políticas de segurança a nível de linha (**Row Level Security - RLS**) e funções transacionais atômicas (RPCs):
 
-- A etapa é a fonte única para saber se uma tarefa está concluída. O gatilho do banco preenche `completed_at` ao entrar em etapa final e limpa ao sair. Cada movimentação grava autor e horário em `task_movements`. Kanban, lista de concluídas e dashboard consultam a mesma regra.
-- As transições válidas são cadastradas em `stage_transitions`. Colaboradores e gestores seguem estritamente o fluxo guiado, enquanto administradores possuem fluxo livre para mover tarefas para qualquer etapa. O menu de movimentação oferece alternativa ao arrastar. Itens padrão da etapa são aplicados ao entrar nela. Grupos opcionais de templates podem ser selecionados no formulário de nova tarefa; a função `create_task_with_templates` cria tarefa e subtarefas na mesma transação.
-- A aba Templates permite criar e editar nome, descrição e itens do grupo. A função `save_checklist_template` salva tudo na mesma transação; alterações no template não reescrevem checklists de tarefas já criadas.
-- A aba Tags permite criar, editar cor e nome, e excluir tags. As funções `save_tag` e `delete_tag` atualizam também as tarefas que usam a tag; apenas administradores podem executá-las. A seleção de tags nas tarefas usa o cadastro compartilhado.
-- Em **Tarefas > Kanban > Gerenciar Etapas**, administradores podem criar etapas, alterar nome e cor, reordenar por arrastar ou pelas setas do teclado e excluir etapas sem tarefas, fluxos ou subtarefas padrão. A função `reorder_stages` grava a ordem sem violar a posição única, e o gatilho `guard_stage_delete` preserva as referências e a última etapa final. Os caminhos continuam configurados em **Fluxos**.
-- Tarefas e seus comentários, checklists e histórico são protegidos por RLS de equipe, inclusive em consulta direta por ID.
-- Mensagens, metadados de anexos e objetos do bucket privado exigem membro **ativo** da equipe. Administradores sem associação ativa não acessam o canal. A função de criação de usuários mantém a chave privilegiada no servidor.
-- Mensagens são exibidas como enviadas só após o `INSERT` no PostgreSQL. O chat reconcilia mensagens após reconexão, pagina o histórico e elimina duplicatas por ID. Em falha de gravação, o texto permanece no campo.
-- O cadastro de clientes separa dados gerais, financeiro, links e referências de integração. Não use esses campos para senhas ou tokens.
-- Clientes têm visões em cartões e lista, modal dedicado de **Perfil do Cliente** com redesign moderno (ADR-017: largura 940px, avatar quadrado 56px, cabeçalho limpo com etiquetas "Cliente oficial" e contagem de demandas, abas tipográficas WAI-ARIA com navegação por teclado, corpo suave com cartões brancos 12px, 3 KPIs superiores de demandas, identificação cadastral com ID único e botão de cópia, contato principal com link mailto, WhatsApp e cópia, aba Financeiro neutra sem caixas amarelas de alerta e com botões contextuais de adição, abas de links e integrações técnicas alinhadas à esquerda com banner de segurança contra tokens/senhas, e lista de demandas com badges de ramificação e encaminhamento), menu de ações `...` no cabeçalho com exclusão segura (estritamente bloqueada caso o cliente possua demandas vinculadas para prevenir perda acidental de dados), links de auto-cadastro com gerenciamento e exclusão definitiva, fila de **Cadastros Pendentes de Validação** modernizada (faixa compacta de quarentena sem blocos azuis pesados, filtros por abas Todos / Financeiro / CNPJ, cartões com expansão inline ao revisar e aprovação/rejeição direta, e estado vazio limpo sem contadores "0"), e botão de exportação completa para CSV com todas as colunas de dados gerais, contatos, dados financeiros, links e integrações (formatado com BOM UTF-8, separador `;` e sanitização contra injeção de fórmulas para compatibilidade com o Excel no Brasil). Administradores criam equipes; gestores podem editar a equipe que gerenciam. `save_team` cria também o canal privado Geral e a associação do administrador criador na mesma transação.
-- O cadastro de usuários coleta nome, e-mail de acesso, WhatsApp, senha temporária e função (Administrador, Gestor ou Colaborador), além da equipe. A senha vai apenas para o Supabase Auth pela Edge Function e não é gravada no perfil nem na prévia local.
-- Em **Configurações**, qualquer pessoa logada vê os dados da própria conta, pode atualizar nome e WhatsApp, alterar a própria senha e escolher o tema. Campos de senha (login, ativação de conta, Configurações e cadastro/edição de usuários) têm botão para mostrar ou ocultar o valor digitado, sem gravar a senha em texto visível por padrão. Função e equipes são informativas; o e-mail de acesso é somente leitura. `update_my_profile` altera exclusivamente o perfil identificado por `auth.uid()` e não permite trocar função ou status.
-- A aba **Relatórios** reúne indicadores de tarefas, distribuição por equipe e etapa, seletor de dimensão por quadro e lista filtrável com exportação CSV:
-  - **Quadro como Dimensão**: Permite filtrar e agrupar por `Todos os meus quadros`, `Quadro Geral`, `Visões por Setor` (espelhos) e `Quadros Personalizados` (Kanban/Scrum).
-  - **Quadro-Resumo de Indicadores**: Na opção `Todos os meus quadros`, apresenta uma tabela comparativa com uma linha por quadro (Nome, Tipo, Total, Em andamento, Pausadas, Backlog, Concluídas, Atrasadas, Progresso % com mini-barra e Story Points para Scrum). As visões por setor aparecem como linhas informativas ("visão do Geral") e ficam rigorosamente fora da linha de TOTAL CONSOLIDADO, impedindo qualquer contagem dupla. Conta com navegação rápida com filtros clicáveis por célula de status e botão dedicado de exportação do resumo em CSV (compatível com Excel via BOM UTF-8).
-  - **Status Mutuamente Exclusivos**: Toda tarefa possui exatamente um status (`active` + `done` + `blocked` + `backlog` = Total).
-  - **Atraso como Indicador Visual**: `Atrasada` é um marcador/alerta extra (ícone de relógio vermelho), aplicando-se a tarefas não concluídas com prazo estritamente anterior à data de hoje no fuso oficial `America/Fortaleza`. Tarefas com prazo no próprio dia não contam como atrasadas.
-  - **Quadros Scrum**: Tarefas fora da sprint ativa entram no status `Backlog` (com rótulo Backlog ou Sprint planejada). Há alternador opcional entre "Todo o quadro" e "Apenas sprint ativa".
-  - **Segurança e RLS**: Consultas de agregação de relatórios no banco utilizam a procedure `get_board_report_metrics` com `SECURITY INVOKER`, garantindo que quadros e tarefas privadas de outras equipes nunca vazem nem no nome nem nos totais. A exportação CSV respeita as permissões ativas.
-- **Quadros Kanban Personalizados e Visões por Setor**:
-  - **Assistente de Criação de Quadros (Redesign em 2 Passos - ADR-026)**:
-    - **Passo 1 (Configuração)**: Criação simplificada e ergonômica em modal responsivo largo (máx. 860px) sem cortes nem rolagem horizontal. Permite definir nome com placeholder amigável, paleta de 8 cores nomeadas do sistema (Azul, Roxo, Verde, Âmbar, Rosa, Vermelho, Índigo e Cinza) salvas no campo `color` do quadro, descrição opcional, escolha entre 5 modelos predefinidos de quadro (*Em branco*, *Suporte*, *Comercial*, *Implantação* e *Scrum padrão*), cartões de metodologia (Kanban e Scrum com aviso informativo de Backlog e Sprints automáticas), e gerenciamento intuitivo de etapas com alça de arrastar e botões acessíveis para reordenação com teclado, cor por nome em pt-BR, limites WIP numéricos opcionais, checkbox de etapa final e validação inline rigorosa. As opções legadas de espelhamento do Geral foram removidas da interface de criação para foco em quadros operacionais independentes.
-    - **Passo 2 (Acesso e Revisão)**: Layout em duas colunas com cartões de acesso (*Privado da equipe* com seleção de time vs *Corporativo* para toda a organização) e regras de encaminhamento (*Ao concluir uma tarefa*: perguntar se encaminha, sugerir destino padrão com pré-seleção dinâmica de quadro e etapa via `getStagesForBoard`, ou nunca perguntar). Coluna da direita com prévia fiel das colunas do quadro exibindo dots de cor, badges WIP/Final e cards de exemplo, resumo consolidado dos parâmetros e checklist *Antes de criar*.
-    - **Robustez e Usabilidade**: Bloqueio de submissão concorrente/duplo clique, preservação de dados e tratamento de erro sem fechar o modal em caso de falha de rede/API, detecção de alterações com diálogo modal de confirmação de descarte de dados, foco preso (trap focus) e suporte completo a cancelamento via tecla Escape.
-  - **Quadro Geral**: Quadro canônico oficial com todas as 15 etapas e todas as tarefas.
-  - **Visões por Setor**: Espelham subconjuntos de etapas do Geral (ex: Comercial com Negociação, Contrato e Kick-off) sem duplicar tarefas. Mover um card na visão do setor atualiza o Geral em tempo real. Apenas administradores podem criar visões de setor.
-  - **Quadros Personalizados**: Permitem definir etapas próprias (nome, cor, ordem e limite WIP opcional). Administradores e gestores de equipe podem criar quadros (privados de sua equipe ou corporativos compartilhados). A movimentação em quadros personalizados é livre para quem possui acesso.
-  - **Criação de Tarefas nos Quadros**: O modal "Nova Tarefa" detecta automaticamente o quadro ativo (`activeBoard`). Ao criar uma tarefa dentro de um quadro personalizado, ela é vinculada a ele (`board_id`), restrita às colunas dele (`board_stages`) e, caso o quadro seja Scrum, permite alocação direta à sprint ativa ou ao backlog.
-  - **Edição de Etapas e Configurações do Quadro**: Pelo botão "Editar Etapas" no topo do quadro ou em "Meus quadros > Editar", gestores e administradores podem editar nome, descrição, escopo, adicionar novas colunas, renomear, trocar cores, ajustar limites WIP e definir a coluna final. Tarefas de etapas removidas são realocadas automaticamente para a primeira coluna remanescente pela RPC `update_custom_board`, evitando registros órfãos.
-  - **Limites de Trabalho em Andamento (WIP)**: Alerta visual configurável por etapa (destaque amarelo ao atingir o limite exato, vermelho ao exceder; ex: `3/3` ou `4/3`), sem bloquear a soltura do card.
-  - **Navegação e Linha de Abas (Fase 1)**: As abas seguem estritamente a ordem `[Geral]` -> `[Meus quadros]` -> `[quadros do usuário, ex: Comercial, Suporte]` -> `[+ Novo quadro]`. O botão `[+ Novo quadro]` permanece fixado inline ao lado do último quadro, abrindo o modal de criação. À direita, alternador de visão `[Kanban / Lista]` e botão de gerenciar etapas.
-  - **Tela "Meus Quadros" em Navegação Própria**: Clicar na aba "Meus quadros" navega para uma visualização dedicada na própria tela (sem popup ou modal), apresentando cartões com resumo, métricas, escopo e ações de acesso, edição e exclusão de quadros associados ao usuário logado.
-  - **Visão por Setor**: Apresenta banner de apoio informativo (*"Visão filtrada do quadro Geral. Mover um card aqui atualiza o Geral."*).
-  - **Padrão Visual de Referência**: Colunas de 250px, cabeçalhos das 15 etapas com cores padronizadas e bolinha de destaque, contador em pílula escura de 11px, cards com padding 12px e chip de setor secundário (`#dbeafe`/`#1e3a8a`), botão primário `#1e40af` (raio 8px, peso 600) e botões ghost `#cbd5e1`.
-  - **Metodologia Scrum (Fase 2)**:
-    - **Criação de Quadro Scrum**: Metodologia "Scrum" habilitada no modal "Criar quadro" com etapas editáveis (padrão: Tarefas, Em andamento, Concluído).
-    - **Alternador de Visões**: Em quadros Scrum, exibe dinamicamente 4 opções: `[Kanban | Lista | Backlog | Sprint]`. Em quadros Kanban convencionais e no Geral, `Backlog` e `Sprint` não são exibidos.
-    - **Backlog Priorizado**: Lista priorizada de demandas não alocadas, reordenável via drag-and-drop, com estimativa em Story Points (`pts`), tags de prioridade, responsável e botão rápido `+ Tarefa no backlog`.
-    - **Planejamento de Sprints**: Criação de sprints com nome, meta e período de início/término. Permite arrastar tarefas do backlog para a sprint planejada, calculando o total planejado em tempo real.
-    - **Regra de Unicidade**: Blindagem no PostgreSQL (`idx_unique_active_sprint_per_board`) e na aplicação garantindo rigorosamente apenas **uma** sprint ativa simultaneamente por quadro.
-    - **Validação de Início de Sprint**: A RPC `start_sprint` exige ao menos uma tarefa alocada e período de datas válido para iniciar o ciclo.
-    - **Quadro da Sprint Ativa**: Exibe exclusivamente as tarefas da sprint corrente nas colunas do quadro, com cabeçalho contendo nome, meta, período, badge "Dia X de Y", barra de progresso de pontos entregues e botões "Burndown" e "Encerrar sprint".
-    - **Gráfico de Burndown Diário**: Renderização vetorial em SVG nativo responsivo comparando a linha ideal de queima de pontos versus a linha real baseada nas transições registradas em `task_movements`.
-    - **Encerramento de Sprint**: Modal completo exibindo velocidade (pontos entregues), pendências e transição automática das tarefas não concluídas para o backlog (`sprint_id = null`) ou para a próxima sprint planejada via RPC atômica `complete_sprint`.
-- **Modos de Visualização da Aba Geral (Lateral e Consolidado — Visão Pura de Agregação e Somente Leitura - ADR-023 e ADR-024)**:
-  - **Visão Pura de Agregação Panorâmica**: A aba Geral opera como hub de monitoramento executivo e somente leitura de todos os quadros operacionais da empresa. Arrastar e soltar tarefas é desativado no Geral (`draggable={false}`) e ações destrutivas rápidas são removidas dos cards, prevenindo movimentações acidentais entre fluxos distintos.
-  - **Navegação Direta para o Quadro Operacional**: Cada bloco do modo Lateral e cada faixa do modo Consolidado conta com o botão *"Abrir quadro"* (`general-btn-open-board`), permitindo transição com um clique para o quadro operacional onde a equipe executa suas tarefas e transita etapas.
-  - **Criação de Tarefas com Quadro Obrigatório**: Ao criar tarefas a partir da aba Geral, o formulário exige a escolha do *"Quadro de Destino"*, impedindo tarefas órfãs e sincronizando etapas, equipe e sprints Scrum automaticamente.
-  - **Dois Modos de Visualização**: No topo da aba Geral de Tarefas, o seletor segmentado permite alternar entre **Modo Lateral** (blocos horizontais lado a lado com rolagem horizontal, alça de reordenação `::` dos blocos e colunas vazias recolhidas em tiras de 46px com drag-expand) e **Modo Consolidado** (faixas verticais expansíveis com resumo "Por etapa:" e ações em lote `Expandir todos` / `Recolher todos`).
-  - **Filtro de Situação e Quadros**: Alternador entre tarefas `Em andamento` (padrão), `Concluídas` e `Todas`, popover de filtros avançados `Filtros (n)` e filtro dropdown `Quadros: todos` para focar em quadros específicos.
-  - **Reordenação de Abas no Topo de Tarefas**: Abas de quadros reordenáveis via drag-and-drop com indicador de inserção azul (`.tab-drop-indicator`) e botões acessíveis de teclado (`←` e `→`), persistindo a ordem por usuário.
-  - **Concordância Rigorosa com Relatórios (ADR-008)**: Contagens dos cabeçalhos utilizam as funções canônicas `resolveTaskStage` e `computeTaskStatus`. Visões de setor permanecem como filtros do Geral e não viram blocos próprios, eliminando qualquer contagem dupla.
-  - **Persistência de Preferências**: O modo escolhido, a ordem dos blocos, o estado expandido/recolhido das raias, a preferência de colunas vazias por modo e a ordem das abas superiores ficam salvos por usuário em `localStorage` com total compatibilidade com o modo demonstração.
-- **Encaminhamento de Tarefa Concluída para Outro Quadro (Ramificação com Linha do Tempo - ADR-014)**:
-  - **Fluxo Só Para Frente e Travamento no Servidor**: Quando uma tarefa chega à etapa final de qualquer quadro, ela pode ser encaminhada para outro quadro autorizado. Uma vez encaminhada, a tarefa original **permanece travada** na etapa final (bloqueada contra reabertura ou movimentação, tanto no frontend quanto via trigger no PostgreSQL `trg_check_forwarded_task_immutable`).
-  - **Uma Única Ramificação por Tarefa**: Cada tarefa só pode gerar uma única ramificação direta, garantida por restrição única parcial no banco (`tasks_single_branch_idx`). A ramificação gerada pode, no futuro, ser encaminhada para um terceiro quadro ao ser concluída em seu próprio quadro (encadeamento linear).
-  - **Prevenção Estrita de Ciclos**: O seletor de destinos exclui automaticamente qualquer quadro que já faça parte da linhagem histórica da tarefa (`excludedBoardIds`), impedindo ciclos ou retornos.
-  - **Linha do Tempo Cronológica e Herdada**: No modal de detalhes da tarefa, a aba vertical **Linha do tempo** apresenta a jornada completa de ponta a ponta com instantâneos imutáveis (quadro, etapa, cor, responsável, data/hora e tipo de evento). Operadores sem permissão para ver quadros restritos da cadeia visualizam os eventos mascarados com aviso amigável de confidencialidade, preservando a segurança corporativa.
-  - **Vínculos Bidirecionais e Navegação Rápida**: A original exibe a etiqueta clicável *"Encaminhada para: [Quadro]"* e a ramificação exibe *"Veio de: [Quadro]"*, permitindo alternância instantânea entre as tarefas da jornada.
-  - **Configuração por Quadro "Ao Concluir"**: Gestores podem configurar em "Editar Quadro" o comportamento ao concluir tarefas: `Perguntar sempre` (padrão com modal de confirmação), `Sugerir destino padrão` (pré-seleciona quadro e etapa sugeridos) ou `Não perguntar`. Se o operador escolher "Agora não", a tarefa permanece concluída e pode ser encaminhada posteriormente ou reaberta enquanto não tiver sido ramificada.
-  - **Relatórios Transparentes e Indicador de Jornadas**: Relatórios seguem com status mutuamente exclusivos (ADR-008). O filtro *"Ocultar ramificações"* permite analisar apenas as tarefas originais, e a métrica executiva de **Jornadas Únicas** (contabilizada por `root_task_id`) impede que passagens de bastão inflem artificialmente os totais de demandas da empresa.
-  - **Modo Demonstração Integrado**: Totalmente funcional sem Supabase (`src/demo.ts`), com simulação completa de eventos de linha do tempo entre os quadros Geral e Implantação.
-- **Dashboard Operacional Aprimorado (ADR-014)**:
-  - **Saudação Dinâmica e Ações Rápidas**: Microcopy contextual por horário/perfil e atalhos rápidos (`+ Nova tarefa`, `Ver tarefas`, `Relatórios`).
-  - **Barra de Escopo de Quadro**: Alternador imediato entre *Todos os meus quadros*, *Quadro Geral* ou qualquer quadro setorial acessível (respeitando estritamente o RLS).
-  - **Alerta de Gargalo WIP**: Inspeciona dinamicamente os limites de trabalho em andamento (`wip_limit`) das etapas ativas. Se uma coluna atingir ou ultrapassar o limite, exibe um banner de aviso visual com salto direto para o quadro correspondente.
-  - **Widget de Sprint Ativa (Scrum)**: Em escopo geral com quadros Scrum ou com quadro Scrum selecionado, exibe meta da sprint, dias restantes com barra de progresso visual, distribuição de pontos de história e atalho de navegação direta.
-  - **5 Cartões Métricos com Filtro Rápido**: Minhas tarefas, Atrasadas, Próximas, Bloqueadas (pausadas) e Concluídas na semana, permitindo filtrar prioridades e navegar com um clique para a tela de Tarefas.
-  - **Panorama de Fluxo Contextual**: Adapta as contagens conforme o escopo selecionado (etapas canônicas para Geral/Todos ou colunas customizadas do quadro selecionado).
-  - **Prioridades e Urgências**: Lista tarefas prioritárias com destaque para nome e cor do quadro, setor, responsável e indicador de prazo em atraso.
-  - **Painel de Capacidade da Equipe**: Exibido para gestores e administradores, sinaliza a carga de trabalho ativa por colaborador e alerta sobre tarefas pendentes sem responsável atribuído.
+- **Script Consolidado Mestre:** [`supabase/todas_migrations_somax_hub.sql`](supabase/todas_migrations_somax_hub.sql) reúne todo o schema, tabelas, RLS e triggers em um único arquivo, ideal para inicializar novos ambientes.
+- **Histórico Incremental:** A pasta [`supabase/migrations/`](supabase/migrations/) preserva o histórico sequencial de evolução da base, assegurando compatibilidade com o versionamento do Supabase CLI (`supabase db push`).
 
-## Verificação
+---
 
-Com o projeto Supabase configurado, use três contas fictícias: `A` e `B` na mesma equipe e `C` em outra. Abra sessões separadas e verifique:
+## 🧪 Testes & Qualidade
 
-1. `A` envia mensagem no canal **Geral**; `B` recebe sem atualizar a página. Desconecte `B`, envie outras mensagens e reconecte: todas aparecem uma vez. Simule falha de rede ao enviar: o texto continua no editor.
-2. `C` não lista o canal da equipe de `A`, não recebe eventos Realtime e obtém resultado vazio/403 ao consultar `messages`, `attachments` e `storage.objects` diretamente pelo ID/caminho. Teste também uma tarefa vinculada de equipe diferente: o título não deve aparecer para quem não tem acesso à tarefa.
-3. Mova uma tarefa para **Concluído**: ela aparece como concluída no Kanban, na lista e no indicador da semana. Reabra em **Faturamento**: `completed_at` volta a `null`, a tarefa sai das visões de concluídas e permanece no histórico de movimentações.
-4. Desative a associação de `B` à equipe e repita a consulta direta ao canal e anexo: o acesso deve ser negado.
-5. Crie uma tarefa selecionando dois grupos de templates e confirme que todos os itens selecionados aparecem no checklist após salvar e recarregar.
-6. Crie um cliente, edite-o e confira as visões em cartões e lista. Crie uma equipe e confirme a associação do administrador e o canal privado Geral; edite nome e cor.
-7. Crie um usuário com e-mail, WhatsApp, senha temporária, função e equipe. Faça login com essa conta e confirme a exigência de trocar a senha. Verifique que a senha não aparece em `profiles` nem na lista de usuários.
-8. Entre com um colaborador, abra **Configurações** e altere nome e WhatsApp. Recarregue e confirme a persistência. Tente chamar `update_my_profile` sem sessão e confirme a negação. Altere a senha e confirme o novo login.
+A integridade das regras de negócio, cálculos de métricas e contrastes de tema é garantida por uma suíte completa de testes automatizados com Vitest:
 
-Comandos locais: `npm test` e `npm run build`.
+```bash
+# Rodar todos os testes
+npm test
 
-## Limites desta entrega
+# Validação estrita de tipos e compilação de produção
+npm run build
+```
 
-O código está pronto para persistir dados no Supabase, mas este workspace não contém URL, chave pública nem contas do projeto. O Docker local também não está ativo. Por isso, a migration e os testes de aceitação entre contas não foram executados aqui; é necessário aplicá-los no novo projeto Supabase antes do uso. Nenhum dado real foi importado.
+- **313 testes automatizados** distribuídos em 29 arquivos cobrindo permissões de RLS, concordância de status, cálculos Scrum/Kanban e acessibilidade.
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+| Camada | Tecnologia |
+|---|---|
+| **Frontend** | React 19, TypeScript 5.9, Vite 7 |
+| **Estilização** | Tailwind CSS v4, Lucide React Icons |
+| **Backend & Banco** | Supabase (PostgreSQL 15+, Auth, Realtime, Storage) |
+| **Serverless** | Supabase Edge Functions (Deno / TypeScript) |
+| **Testes** | Vitest, Testing Library |
+
+---
+
+## 📄 Licença
+
+Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.

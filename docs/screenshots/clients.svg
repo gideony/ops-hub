@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <rect width="1000" height="520" rx="16" fill="url(#bg)"/>
+  
+  <!-- Header Window -->
+  <rect width="1000" height="44" rx="16" fill="#0b1120"/>
+  <rect y="32" width="1000" height="12" fill="#0b1120"/>
+  <circle cx="28" cy="22" r="6" fill="#ef4444"/>
+  <circle cx="48" cy="22" r="6" fill="#f59e0b"/>
+  <circle cx="68" cy="22" r="6" fill="#10b981"/>
+  <text x="500" y="27" fill="#94a3b8" font-size="13" font-family="system-ui, sans-serif" font-weight="600" text-anchor="middle">OPSHUB — Perfil do Cliente 360° &amp; Fila de Quarentena</text>
+
+  <!-- Modal Container -->
+  <g transform="translate(60, 60)" filter="url(#shadow)">
+    <rect width="880" height="430" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    
+    <!-- Modal Top Header -->
+    <g transform="translate(30, 24)">
+      <!-- Avatar -->
+      <rect width="56" height="56" rx="10" fill="#3b82f6"/>
+      <text x="28" y="35" fill="#ffffff" font-size="20" font-weight="bold" text-anchor="middle">PX</text>
+      
+      <text x="72" y="24" fill="#ffffff" font-size="18" font-family="system-ui, sans-serif" font-weight="700">Provedor Conecta Fibra</text>
+      <rect x="290" y="8" width="94" height="20" rx="10" fill="#1e3a8a"/>
+      <text x="337" y="22" fill="#60a5fa" font-size="10" font-weight="700" text-anchor="middle">Cliente Oficial</text>
+
+      <text x="72" y="46" fill="#94a3b8" font-size="12" font-family="system-ui, sans-serif">CNPJ: 12.345.678/0001-90 · 6 Demandas operacionais vinculadas</text>
+
+      <rect x="730" y="10" width="90" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="775" y="30" fill="#cbd5e1" font-size="12" text-anchor="middle">Fechar ✕</text>
+    </g>
+
+    <!-- Navigation Tabs -->
+    <g transform="translate(30, 94)">
+      <line x1="0" y1="36" x2="820" y2="36" stroke="#1e293b"/>
+      <text x="10" y="24" fill="#60a5fa" font-size="13" font-weight="600">Demandas (6)</text>
+      <rect x="0" y="34" width="95" height="2" fill="#3b82f6"/>
+
+      <text x="130" y="24" fill="#94a3b8" font-size="13">Dados Gerais</text>
+      <text x="240" y="24" fill="#94a3b8" font-size="13">Financeiro</text>
+      <text x="340" y="24" fill="#94a3b8" font-size="13">Links &amp; Acessos</text>
+      <text x="460" y="24" fill="#94a3b8" font-size="13">Integrações Técnicas</text>
+    </g>
+
+    <!-- Demand List Cards Inside Modal -->
+    <g transform="translate(30, 148)">
+      <!-- KPI Stats -->
+      <g transform="translate(0, 0)">
+        <rect width="260" height="56" rx="8" fill="#1e293b"/>
+        <text x="16" y="24" fill="#94a3b8" font-size="11">Total de Demandas</text>
+        <text x="16" y="44" fill="#ffffff" font-size="16" font-weight="700">6 tarefas registradas</text>
+      </g>
+      <g transform="translate(280, 0)">
+        <rect width="260" height="56" rx="8" fill="#1e293b"/>
+        <text x="16" y="24" fill="#94a3b8" font-size="11">Em Andamento</text>
+        <text x="16" y="44" fill="#60a5fa" font-size="16" font-weight="700">2 tarefas ativas</text>
+      </g>
+      <g transform="translate(560, 0)">
+        <rect width="260" height="56" rx="8" fill="#1e293b"/>
+        <text x="16" y="24" fill="#94a3b8" font-size="11">Concluídas</text>
+        <text x="16" y="44" fill="#4ade80" font-size="16" font-weight="700">4 entregas</text>
+      </g>
+
+      <!-- Task Item 1 -->
+      <g transform="translate(0, 72)">
+        <rect width="820" height="60" rx="8" fill="#1e293b" stroke="#334155"/>
+        <circle cx="24" cy="30" r="5" fill="#f59e0b"/>
+        <text x="40" y="26" fill="#ffffff" font-size="13" font-weight="600">Implantação de Servidor Radius &amp; BGP</text>
+        <text x="40" y="44" fill="#94a3b8" font-size="11">Quadro: Implantação · Etapa: Em Validação · Resp: Gideony Ewerton</text>
+        <rect x="710" y="18" width="90" height="24" rx="4" fill="#1e3a8a"/>
+        <text x="755" y="34" fill="#93c5fd" font-size="11" text-anchor="middle">Ver Tarefa ➔</text>
+      </g>
+
+      <!-- Task Item 2 (Forwarded lineage) -->
+      <g transform="translate(0, 144)">
+        <rect width="820" height="60" rx="8" fill="#1e293b" stroke="#334155"/>
+        <circle cx="24" cy="30" r="5" fill="#10b981"/>
+        <text x="40" y="26" fill="#ffffff" font-size="13" font-weight="600">Assinatura de Contrato e Kick-off</text>
+        <text x="40" y="44" fill="#94a3b8" font-size="11">Quadro: Comercial · Concluída em 18/11/2026 · Ramificada para Implantação</text>
+        <rect x="710" y="18" width="90" height="24" rx="4" fill="#0f172a"/>
+        <text x="755" y="34" fill="#94a3b8" font-size="11" text-anchor="middle">Histórico</text>
+      </g>
+    </g>
+  </g>
+</svg>
